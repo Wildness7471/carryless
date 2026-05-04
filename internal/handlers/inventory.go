@@ -769,31 +769,17 @@ func handleImportInventory(c *gin.Context) {
 		return
 	}
 
-	// Begin transaction for atomic operation
-	tx, err := db.Begin()
-	if err != nil {
-		c.Redirect(http.StatusFound, "/inventory?error=database_error")
-		return
-	}
-	defer tx.Rollback()
-
-	// Delete all existing items
+	// Delete all existing items then insert new ones
 	if err := database.DeleteAllItems(db, userID); err != nil {
 		c.Redirect(http.StatusFound, "/inventory?error=delete_error")
 		return
 	}
 
-	// Insert new items
 	for _, item := range items {
 		if _, err := database.CreateItem(db, userID, item); err != nil {
 			c.Redirect(http.StatusFound, "/inventory?error=import_error")
 			return
 		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		c.Redirect(http.StatusFound, "/inventory?error=commit_error")
-		return
 	}
 
 	c.Redirect(http.StatusFound, "/inventory?success=imported")
@@ -813,10 +799,11 @@ func validateCSVFile(file multipart.File, header *multipart.FileHeader) error {
 
 	// Read first 512 bytes for MIME type detection
 	buffer := make([]byte, 512)
-	_, err := file.Read(buffer)
-	if err != nil {
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
 		return fmt.Errorf("cannot read file")
 	}
+	buffer = buffer[:n]
 
 	// Check MIME type (should be text/plain or text/csv)
 	contentType := http.DetectContentType(buffer)

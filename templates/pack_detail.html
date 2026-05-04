@@ -495,7 +495,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-let packPageCsrfToken = '';
+let packPageCsrfToken = '{{.CSRFToken}}';
 const packId = '{{.Pack.ID}}';
 
 async function fetchCSRFToken() {
