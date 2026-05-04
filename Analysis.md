@@ -249,37 +249,38 @@ WAL plus a 5s busy timeout gives you concurrent reads, serialized writes, and gr
 
 ### 6.1 Permission model granularity
 Is the 4-tier model (view / add / edit / admin) final, or do you want fewer/more? Specifically:
-- **Q:** Is "add" distinct from "edit" because shared users should be able to add items but not edit/remove existing ones? Or is it about adding *items they own* vs. adding *anyone's items*?
-- **Q:** What can `admin` do that the owner cannot? Or is `admin` "everything except delete the pack and re-share"?
+- **Q:** Is "add" distinct from "edit" because shared users should be able to add items but not edit/remove existing ones? Or is it about adding *items they own* vs. adding *anyone's items*? Let's just combine this level into one where they can add or remove items from the pack.
+- **Q:** What can `admin` do that the owner cannot? Or is `admin` "everything except delete the pack and re-share"? Admind can't delete the pack. That's it. It can remove or add items. Change the sharing properties or change settings for the pack.
 
 ### 6.2 Sharing target
-- **Q:** Share by username, email, or invite link? (Email implies email lookup; invite link implies a tokenised join URL.)
-- **Q:** Can a pack be shared publicly to "anyone with the link can edit," or only to specific accounts?
+- **Q:** Share by username, email, or invite link? (Email implies email lookup; invite link implies a tokenised join URL.) Let's do all the above. I want these to all be options.
+- **Q:** Can a pack be shared publicly to "anyone with the link can edit," or only to specific accounts? Allow for both options. I still want an option to publish to a public board (future feature).
 
 ### 6.3 Cascading on owner deletion
 - **Q:** When a pack owner deletes a pack that's shared with N users, what happens?
   - (a) Pack is deleted; shared users lose access (current `ON DELETE CASCADE` behavior; their UI just shows "pack no longer exists").
-  - (b) Pack is preserved in a "deleted by owner" archive for shared users.
+  - (b) Pack is preserved in a "deleted by owner" archive for shared users. 
   - (c) Owner cannot delete a shared pack while it's still shared — must revoke first.
+  Put it in an archive for 30 days before beign fully deleted. Don't allow anyone to access it except the owner. But the owner can't edit it either.
 
 ### 6.4 Item ownership when shared user adds (CRITICAL)
 A shared user with `add` permission clicks "add my tent to this pack." The existing schema has `pack_items.item_id → items.id`, and `items.user_id` is the owner.
 - **Option A:** They add their own items only. Items in the pack now reference items belonging to multiple users. Display has to show "Alice's Tent" vs. "Bob's Sleeping bag." Deleting Alice cascades delete her items, partially gutting the shared pack.
 - **Option B:** Adding to a shared pack snapshots the item into the pack-owner's inventory. Avoids cross-user references. Costs disk; loses the link back to the original.
 - **Option C:** Items become first-class shared objects (own ACL table). Most powerful, biggest schema change.
-- **Q:** Which?
+- **Q:** Which? The items stay within each account's items. When a pack is deleted, they items just loose their reference to a pack. When they delete the pack, I want an option to distribute pack items to users and the admin can select items to be copied to user accounts.
 
 ### 6.5 Shared user's own pack list
-- **Q:** Does `GetPacks` for user X return packs shared *with* X? If yes — distinct visual treatment? Sort priority?
+- **Q:** Does `GetPacks` for user X return packs shared *with* X? If yes — distinct visual treatment? Sort priority? Yes. Give priority and visual treatment (separate from shared packs)
 
 ### 6.6 Sub-items
 The brief mentions a `pack_sub_item_checks` table. I have no schema to evaluate.
 - **Q:** What is a "sub-item"? An item-of-an-item (e.g., the stove inside the cookset)? A checklist sub-step? A tag-like grouping?
-- **Q:** Why pack-scoped check state? If a user packs the same item in two packs, are the sub-items independent in each pack? (If yes, the table makes sense; if no, the table belongs on `items` or on `item_links`.)
-- **Q:** Could the existing `item_links` table (`database.go:904`) cover this? It already links items hierarchically.
+- **Q:** Why pack-scoped check state? If a user packs the same item in two packs, are the sub-items independent in each pack? (If yes, the table makes sense; if no, the table belongs on `items` or on `item_links`.) yes
+- **Q:** Could the existing `item_links` table (`database.go:904`) cover this? It already links items hierarchically. Yes, but I want to make sure this works in teh prep mode.
 
 ### 6.7 Activity log / audit
-- **Q:** Should shared packs have an activity feed ("Bob added Tarp at 14:32")? This is a separate table and a non-trivial UI but is typical for collaborative apps.
+- **Q:** Should shared packs have an activity feed ("Bob added Tarp at 14:32")? This is a separate table and a non-trivial UI but is typical for collaborative apps. Yes.
 
 ---
 
@@ -293,22 +294,27 @@ The brief mentions a `pack_sub_item_checks` table. I have no schema to evaluate.
 - **Option E — Skip native, ship a great PWA.** Installable on iOS and Android; no app stores; no Apple developer fees; no review cycle.
 - **Q:** Which path? The answer is a function of (a) how much you care about app-store presence, (b) whether you need native APIs (push, biometrics, share sheet, GPX file pickers), (c) how much engineering time you have.
 
+I want to set this repo up for success in the future. Whatever is going to be the correct approach for having a web and app version. I do want to try limit working on two separate types of code bases.
+
 ### 7.2 Offline support
 - **Q:** Should mobile clients work offline? Editing a packing list while in the woods is a real use case for this app specifically.
 - If yes: the API needs idempotency keys, conflict resolution, and a sync model. This is **major scope**. Probably defer to v2.
 - If no: the mobile experience is read-only without connectivity, which for this app is a real product compromise.
+Yes as a future feature. I want to build it so I can integrate it easily but not write it.
+
 
 ### 7.3 Authentication UX on mobile
-- **Q:** OK to require login on every install? Or do we want refresh tokens with long-lived (30d+) access tokens? Current sessions are 7d sliding — would extending to 30d be acceptable for native?
+- **Q:** OK to require login on every install? Or do we want refresh tokens with long-lived (30d+) access tokens? Current sessions are 7d sliding — would extending to 30d be acceptable for native? 30 days sliding would be ok.
 - **Q:** Biometric unlock (FaceID / fingerprint) for the app — desired in v1 or later?
+Allow the option for biometric unlock.
 
 ### 7.4 Push notifications
 - Required if shared packs have any "real-time" feel.
-- **Q:** v1: no push, manual refresh? v1.5: push when someone edits a shared pack? v2: full push for trip updates, share invites, etc.?
+- **Q:** v1: no push, manual refresh? v1.5: push when someone edits a shared pack? v2: full push for trip updates, share invites, etc.? Full push and allow the user to customize which settings.
 
 ### 7.5 GPX & file uploads on mobile
 The trip feature already supports GPX upload via `multipart/form-data` (`handlers/trips.go`). Mobile file pickers work, but iOS sandboxing makes this fiddly.
-- **Q:** Is GPX upload an MVP-mobile feature or v2?
+- **Q:** Is GPX upload an MVP-mobile feature or v2? mobile feature
 
 ### 7.6 Public pack pages
 `/p/:short_id` already works without auth. Mobile native could simply open these in an in-app browser — should they?
@@ -325,12 +331,16 @@ Two users editing the same pack:
 - **Option C — Operational-transform / CRDT.** Big-tech-collab-doc level effort. Out of scope.
 - **Q:** A or B?
 
+Lets do option B
+
 ### 8.2 Update propagation to other devices
 - **Option A — Polling on focus / pull-to-refresh.** Trivial. Recommended for v1.
 - **Option B — Long-poll with `If-Modified-Since`.** Cheap, no WebSocket infra.
 - **Option C — Server-Sent Events (SSE).** One-way streaming, dead simple in Go, works through proxies.
 - **Option D — WebSockets.** Two-way, more infra, real-time presence indicators.
 - **Q:** A for v1 (Phase D)? Bump to C/D when shared packs see real co-editing?
+
+A for v1
 
 ---
 
@@ -340,12 +350,18 @@ Two users editing the same pack:
 - Existing tests: `database_test.go` (290 lines, ~6 tests), `inventory_test.go` (handler-level).
 - **Q:** Acceptable target before Phase C ships? My recommendation: every new `database.*` function gets a unit test, every API route gets a smoke test, no requirement on existing untested code.
 
+OK
+
 ### 9.2 API versioning
 - Recommendation: `/api/v1`, no deprecation policy until there's a `v2`.
 - **Q:** Agree?
 
+Yes
+
 ### 9.3 Backwards compatibility
 - **Q:** Is breaking the existing CSV export/import format permitted in this work? (It's currently 5/10/11/12 column tolerant — that's already accumulating cruft.)
+
+No, just have to have a way to do import/export for the new way.
 
 ### 9.4 Naming & semantics drift
 - `pack.is_locked` is described in DB code as the toggle for "archive status" (`packs.go:1057`). Two different mental models for one column.
