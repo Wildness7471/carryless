@@ -1304,3 +1304,103 @@ func handleRemovePackLevelLabel(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Label removed successfully"})
 }
+// handlePackCompare handles GET /packs/compare?packs=id1,id2,...
+// The user must have at least "view" permission on each pack.
+func handlePackCompare(c *gin.Context) {
+	userID := c.MustGet("user_id").(int)
+	db := c.MustGet("db").(*sql.DB)
+	user := c.MustGet("user")
+
+	rawIDs := c.Query("packs")
+	if rawIDs == "" {
+		c.Redirect(http.StatusFound, "/packs")
+		return
+	}
+
+	ids := strings.Split(rawIDs, ",")
+	if len(ids) < 2 || len(ids) > 6 {
+		c.HTML(http.StatusBadRequest, "pack_compare.html", gin.H{
+			"Title": "Compare Packs - Carryless",
+			"User":  user,
+			"Error": "Select between 2 and 6 packs to compare",
+		})
+		return
+	}
+
+	type comparePack struct {
+		Pack            *models.Pack
+		TotalWeight     int
+		TotalWornWeight int
+		TotalItemCount  int
+		CategoryWeights map[string]int
+	}
+
+	packs := make([]comparePack, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		perm := database.GetUserSharePermission(db, id, userID)
+		if perm == "none" {
+			c.HTML(http.StatusForbidden, "pack_compare.html", gin.H{
+				"Title": "Compare Packs - Carryless",
+				"User":  user,
+				"Error": "You do not have access to one or more of the selected packs",
+			})
+			return
+		}
+		pack, err := database.GetPackWithItems(db, id)
+		if err != nil {
+			c.HTML(http.StatusNotFound, "pack_compare.html", gin.H{
+				"Title": "Compare Packs - Carryless",
+				"User":  user,
+				"Error": "One or more packs could not be found",
+			})
+			return
+		}
+		pack.UserPermission = perm
+
+		totalWeight := 0
+		totalWornWeight := 0
+		totalItemCount := 0
+		categoryWeights := make(map[string]int)
+
+		for _, pi := range pack.Items {
+			packWeight := pi.Item.WeightGrams * (pi.Count - pi.WornCount)
+			wornWeight := pi.Item.WeightGrams * pi.WornCount
+			totalWeight += packWeight
+			totalWornWeight += wornWeight
+			totalItemCount += pi.Count
+			if pi.Item.Category != nil {
+				categoryWeights[pi.Item.Category.Name] += packWeight + wornWeight
+			}
+		}
+
+		packs = append(packs, comparePack{
+			Pack:            pack,
+			TotalWeight:     totalWeight,
+			TotalWornWeight: totalWornWeight,
+			TotalItemCount:  totalItemCount,
+			CategoryWeights: categoryWeights,
+		})
+	}
+
+	csrfToken, err := database.CreateCSRFToken(db, userID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "pack_compare.html", gin.H{
+			"Title": "Compare Packs - Carryless",
+			"User":  user,
+			"Error": "Failed to generate security token",
+		})
+		return
+	}
+
+	respond(c, http.StatusOK, "pack_compare.html", gin.H{
+		"Title":     "Compare Packs - Carryless",
+		"User":      user,
+		"Packs":     packs,
+		"CSRFToken": csrfToken.Token,
+		"PackIDs":   rawIDs,
+	})
+}

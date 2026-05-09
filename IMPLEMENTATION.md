@@ -34,11 +34,11 @@ If you hit a usage limit, check this file first. The status table shows exactly 
 | 1b | `templates/pack_shares.html` sharing UI | ✅ |
 | 1b | `/packs` page shows "Shared with me" section | ✅ |
 | 1b | Owner-only inventory delete enforced | ✅ |
-| 2 | `handlePackCompare` handler | ⬜ |
-| 2 | `GET /packs/compare` route registered | ⬜ |
-| 2 | `templates/pack_compare.html` side-by-side UI | ⬜ |
-| 2 | `static/js/pack_compare.js` drag-and-drop + move buttons | ⬜ |
-| 2 | `/packs` page: checkbox multi-select + Compare button | ⬜ |
+| 2 | `handlePackCompare` handler | ✅ |
+| 2 | `GET /packs/compare` route registered | ✅ |
+| 2 | `templates/pack_compare.html` side-by-side UI | ✅ |
+| 2 | `static/js/pack_compare.js` drag-and-drop + move buttons | ✅ |
+| 2 | `/packs` page: checkbox multi-select + Compare button | ✅ |
 | 3 | `item_sub_items` + `pack_sub_item_checks` migrations | ⬜ |
 | 3 | `ItemSubItem` model + `SubItems` field on `Item` | ⬜ |
 | 3 | `internal/database/sub_items.go` DB functions | ⬜ |

@@ -1,0 +1,191 @@
+{{define "pack_compare.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    {{template "header" .}}
+
+    <main class="main">
+        {{if .Error}}
+            <div class="alert alert-error">{{.Error}}</div>
+        {{end}}
+
+        <div class="page-header">
+            <h1>Compare Packs</h1>
+            <a href="/packs" class="btn btn-secondary">Back to Packs</a>
+        </div>
+
+        {{if .Packs}}
+        <div class="compare-grid" id="compare-grid">
+            {{range $i, $cp := .Packs}}
+            <div class="compare-col" data-pack-id="{{$cp.Pack.ID}}" draggable="true">
+                <div class="compare-col-header" ondragover="event.preventDefault()" ondrop="handleColumnDrop(event, {{$i}})">
+                    <h2><a href="/packs/{{$cp.Pack.ID}}">{{$cp.Pack.Name}}</a></h2>
+                    <div class="compare-stats">
+                        <span class="stat-chip stat-total" data-weight="{{add $cp.TotalWeight $cp.TotalWornWeight}}">{{add $cp.TotalWeight $cp.TotalWornWeight}}g total</span>
+                        <span class="stat-chip stat-base" data-weight="{{$cp.TotalWeight}}">{{$cp.TotalWeight}}g base</span>
+                        <span class="stat-chip stat-worn" data-weight="{{$cp.TotalWornWeight}}">{{$cp.TotalWornWeight}}g worn</span>
+                        <span class="stat-chip">{{$cp.TotalItemCount}} items</span>
+                    </div>
+                </div>
+
+                <!-- Move buttons (one per sibling pack) -->
+                {{if gt (len $.Packs) 1}}
+                <div class="move-buttons">
+                    {{range $j, $target := $.Packs}}
+                    {{if ne $i $j}}
+                    <button class="btn btn-xs btn-secondary move-btn" data-from="{{$i}}" data-to="{{$j}}"
+                            title="Move items to {{$target.Pack.Name}}">
+                        Move all &rarr; {{$target.Pack.Name}}
+                    </button>
+                    {{end}}
+                    {{end}}
+                </div>
+                {{end}}
+
+                <div class="compare-items" id="items-col-{{$i}}"
+                     ondragover="event.preventDefault()"
+                     ondrop="handleItemDrop(event, '{{$cp.Pack.ID}}')">
+                    {{range $cp.Pack.Items}}
+                    <div class="compare-item-row" draggable="true"
+                         data-pack-item-id="{{.ID}}"
+                         data-item-id="{{.ItemID}}"
+                         data-pack-id="{{$cp.Pack.ID}}"
+                         ondragstart="handleItemDragStart(event)">
+                        <span class="item-name">{{.Item.Name}}</span>
+                        <span class="item-meta">
+                            {{if .Item.Category}}<span class="item-cat">{{.Item.Category.Name}}</span>{{end}}
+                            <span class="item-weight" data-weight="{{.Item.WeightGrams}}">{{.Item.WeightGrams}}g</span>
+                            {{if gt .Count 1}}<span class="item-count">×{{.Count}}</span>{{end}}
+                            {{if .IsWorn}}<span class="worn-badge">worn</span>{{end}}
+                        </span>
+                    </div>
+                    {{else}}
+                    <p class="text-muted" style="padding:1rem 0">No items in this pack.</p>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+        </div>
+
+        <p class="text-muted" style="margin-top:1rem;font-size:.85rem">
+            Drag items between columns or use the "Move all" buttons to move items between packs.
+        </p>
+        {{end}}
+    </main>
+
+    {{template "footer" .}}
+
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/pack_compare.js"></script>
+    <script>
+    const CSRF = '{{.CSRFToken}}';
+    </script>
+
+<style>
+.compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    align-items: start;
+}
+.compare-col {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+.compare-col.drag-over {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13,110,253,.15);
+}
+.compare-col-header {
+    padding: 1rem 1rem 0.5rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+.compare-col-header h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+}
+.compare-col-header h2 a {
+    text-decoration: none;
+    color: inherit;
+}
+.compare-col-header h2 a:hover {
+    text-decoration: underline;
+}
+.compare-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 0.5rem;
+}
+.stat-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: .75rem;
+    font-weight: 500;
+    background: #e9ecef;
+    color: #495057;
+}
+.stat-total { background: #cfe2ff; color: #084298; }
+.stat-base  { background: #d1ecf1; color: #0c5460; }
+.stat-worn  { background: #fce5cd; color: #7d3d00; }
+
+.move-buttons {
+    padding: 0.5rem 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    border-bottom: 1px solid #dee2e6;
+    background: #fffcf5;
+}
+.compare-items {
+    padding: 0.5rem 0;
+    min-height: 80px;
+}
+.compare-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 1rem;
+    cursor: grab;
+    transition: background .15s;
+}
+.compare-item-row:hover {
+    background: #f0f4ff;
+}
+.compare-item-row.dragging {
+    opacity: .4;
+    cursor: grabbing;
+}
+.item-name { font-size: .9rem; }
+.item-meta {
+    display: flex;
+    gap: .375rem;
+    align-items: center;
+    font-size: .8rem;
+    color: #6c757d;
+}
+.item-cat { color: #adb5bd; }
+.worn-badge {
+    background: #fff3cd;
+    color: #856404;
+    padding: 1px 5px;
+    border-radius: 6px;
+    font-size: .7rem;
+}
+.item-count { color: #0d6efd; font-weight: 600; }
+</style>
+</body>
+</html>
+{{end}}

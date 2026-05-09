@@ -79,6 +79,7 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, emailService *email.Service, cfg *co
 		activated.POST("/categories/:id/delete", handleDeleteCategory)
 
 		activated.GET("/packs", handlePacks)
+		activated.GET("/packs/compare", handlePackCompare)
 		activated.GET("/packs/new", handleNewPackPage)
 		activated.POST("/packs", handleCreatePack)
 		activated.GET("/packs/:id", handlePackDetail)
