@@ -333,7 +333,7 @@ func handleDashboard(c *gin.Context) {
 		"pack_count", len(recentPacks))
 
 	logger.Debug("Rendering dashboard template", "user_id", userID)
-	c.HTML(http.StatusOK, "dashboard.html", gin.H{
+	respond(c, http.StatusOK, "dashboard.html", gin.H{
 		"Title":       "Dashboard - Carryless",
 		"User":        user,
 		"CSRFToken":   csrfToken.Token,

@@ -42,7 +42,7 @@ func handleTrips(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "trips.html", gin.H{
+	respond(c, http.StatusOK, "trips.html", gin.H{
 		"Title":     "Trips - Carryless",
 		"User":      user,
 		"Trips":     trips,
@@ -67,7 +67,7 @@ func handleNewTripPage(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "new_trip.html", gin.H{
+	respond(c, http.StatusOK, "new_trip.html", gin.H{
 		"Title":     "New Trip - Carryless",
 		"User":      user,
 		"CSRFToken": csrfToken.Token,
@@ -187,7 +187,7 @@ func handleTripDetail(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "trip_detail.html", gin.H{
+	respond(c, http.StatusOK, "trip_detail.html", gin.H{
 		"Title":     trip.Name + " - Carryless",
 		"User":      user,
 		"Trip":      trip,
@@ -234,7 +234,7 @@ func handleEditTripPage(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "edit_trip.html", gin.H{
+	respond(c, http.StatusOK, "edit_trip.html", gin.H{
 		"Title":     "Edit " + trip.Name + " - Carryless",
 		"User":      user,
 		"Trip":      trip,

@@ -27,12 +27,14 @@ func packPermission(c *gin.Context, packID string) (string, *models.Pack) {
 	return perm, pack
 }
 
-// respond sends HTML or JSON depending on the Accept header.
-func respond(c *gin.Context, status int, tmpl string, data gin.H) {
+// respond sends the SPA shell or JSON depending on the Accept header.
+// JSON callers get the full data payload; browser navigations get spa.html
+// and the client-side router re-fetches the same URL with Accept: application/json.
+func respond(c *gin.Context, _ int, _ string, data gin.H) {
 	if c.GetHeader("Accept") == "application/json" {
-		c.JSON(status, data)
+		c.JSON(http.StatusOK, data)
 	} else {
-		c.HTML(status, tmpl, data)
+		c.HTML(http.StatusOK, "spa.html", nil)
 	}
 }
 

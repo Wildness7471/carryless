@@ -25,7 +25,7 @@ func handleAccountPage(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "account.html", gin.H{
+	respond(c, http.StatusOK, "account.html", gin.H{
 		"Title":     "Account - Carryless",
 		"User":      user,
 		"CSRFToken": csrfToken.Token,
@@ -91,7 +91,7 @@ func handleChangePassword(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "account.html", gin.H{
+	respond(c, http.StatusOK, "account.html", gin.H{
 		"Title":   "Account - Carryless",
 		"User":    user,
 		"Success": "Password updated successfully",
@@ -145,7 +145,7 @@ func handleChangeUsername(c *gin.Context) {
 	// Refresh user data
 	updatedUser, _ := database.GetUserByID(db, userID)
 
-	c.HTML(http.StatusOK, "account.html", gin.H{
+	respond(c, http.StatusOK, "account.html", gin.H{
 		"Title":   "Account - Carryless",
 		"User":    updatedUser,
 		"Success": "Username updated successfully",
@@ -191,7 +191,7 @@ func handleChangeCurrency(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "account.html", gin.H{
+	respond(c, http.StatusOK, "account.html", gin.H{
 		"Title":   "Account - Carryless",
 		"User":    user,
 		"Success": "Currency updated successfully",

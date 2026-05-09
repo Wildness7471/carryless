@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"database/sql"
 	"mime/multipart"
 	"strings"
 	"testing"
@@ -11,18 +10,6 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 )
-
-func setupTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		t.Fatal("Failed to open test database:", err)
-	}
-	if err := database.Migrate(db); err != nil {
-		t.Fatal("Failed to run migrations:", err)
-	}
-	return db
-}
 
 // memFile wraps a bytes.Reader to satisfy multipart.File
 type memFile struct{ *bytes.Reader }
