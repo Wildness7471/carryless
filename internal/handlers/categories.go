@@ -37,7 +37,7 @@ func handleCategories(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "categories.html", gin.H{
+	respond(c, http.StatusOK, "categories.html", gin.H{
 		"Title":      "Categories - Carryless",
 		"User":       user,
 		"Categories": categories,
@@ -168,7 +168,7 @@ func handleNewCategoryPage(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "new_category.html", gin.H{
+	respond(c, http.StatusOK, "new_category.html", gin.H{
 		"Title":     "New Category - Carryless",
 		"User":      user,
 		"CSRFToken": csrfToken.Token,
@@ -211,7 +211,7 @@ func handleEditCategoryPage(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "edit_category.html", gin.H{
+	respond(c, http.StatusOK, "edit_category.html", gin.H{
 		"Title":     "Edit Category - Carryless",
 		"User":      user,
 		"Category":  category,

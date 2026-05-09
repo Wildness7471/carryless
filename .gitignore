@@ -6,3 +6,5 @@ CHROME_MCP_EXAMPLE.md
 DEV_MODE.md
 carryless.exe
 .claude/
+node_modules/
+seed

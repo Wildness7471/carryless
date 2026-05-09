@@ -92,7 +92,7 @@ func handleInventory(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "inventory.html", gin.H{
+	respond(c, http.StatusOK, "inventory.html", gin.H{
 		"Title":          "Inventory - Carryless",
 		"User":           user,
 		"Items":          items,
@@ -127,7 +127,7 @@ func handleNewItemPage(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "new_item.html", gin.H{
+	respond(c, http.StatusOK, "new_item.html", gin.H{
 		"Title":      "New Item - Carryless",
 		"User":       user,
 		"Categories": categories,
@@ -359,7 +359,7 @@ func handleEditItemPage(c *gin.Context) {
 
 	subItems, _ := database.GetSubItems(db, itemID)
 
-	c.HTML(http.StatusOK, "edit_item.html", gin.H{
+	respond(c, http.StatusOK, "edit_item.html", gin.H{
 		"Title":      "Edit Item - Carryless",
 		"User":       user,
 		"Item":       item,
