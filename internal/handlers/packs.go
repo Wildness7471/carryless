@@ -1011,45 +1011,44 @@ func handleRemoveLabelFromItem(c *gin.Context) {
 func handlePackChecklist(c *gin.Context) {
 	packID := c.Param("id")
 	db := c.MustGet("db").(*sql.DB)
-	
-	user, hasUser := c.Get("user")
-	userID, hasUserID := c.Get("user_id")
+
+	user, _ := c.Get("user")
+	userIDVal, hasUserID := c.Get("user_id")
 
 	pack, err := database.GetPackWithItems(db, packID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			c.HTML(http.StatusNotFound, "404.html", gin.H{
-				"Title": "Pack Not Found - Carryless",
-				"User":  user,
-			})
+			c.HTML(http.StatusNotFound, "404.html", gin.H{"Title": "Pack Not Found - Carryless", "User": user})
 			return
 		}
 		c.HTML(http.StatusInternalServerError, "checklist.html", gin.H{
-			"Title": "Pack Checklist - Carryless",
-			"User":  user,
-			"Error": "Failed to load pack",
+			"Title": "Pack Checklist - Carryless", "User": user, "Error": "Failed to load pack",
 		})
 		return
 	}
 
-	// Check access permissions
+	// Access: public packs are open; private packs require view+ share permission
 	if !pack.IsPublic {
-		// Private pack - require auth and ownership
-		if !hasUser || !hasUserID {
-			c.HTML(http.StatusForbidden, "403.html", gin.H{
-				"Title": "Access Denied - Carryless",
-				"User":  user,
-			})
+		if !hasUserID {
+			c.HTML(http.StatusForbidden, "403.html", gin.H{"Title": "Access Denied - Carryless", "User": user})
 			return
 		}
-		
-		if pack.UserID != userID.(int) {
-			c.HTML(http.StatusForbidden, "403.html", gin.H{
-				"Title": "Access Denied - Carryless",
-				"User":  user,
-			})
+		uid := userIDVal.(int)
+		perm := database.GetUserSharePermission(db, packID, uid)
+		if perm == "none" {
+			c.HTML(http.StatusForbidden, "403.html", gin.H{"Title": "Access Denied - Carryless", "User": user})
 			return
 		}
+	}
+
+	// Load sub-items for checklist display
+	itemIDs := make([]int, 0, len(pack.Items))
+	for _, pi := range pack.Items {
+		itemIDs = append(itemIDs, pi.Item.ID)
+	}
+	subItemMap, _ := database.GetSubItemsForPackBulk(db, packID, itemIDs)
+	for i := range pack.Items {
+		pack.Items[i].Item.SubItems = subItemMap[pack.Items[i].Item.ID]
 	}
 
 	totalItems := 0
@@ -1057,10 +1056,13 @@ func handlePackChecklist(c *gin.Context) {
 		totalItems += packItem.Count
 	}
 
-	// Check if current user is the owner
-	isOwner := false
+	isOwner := hasUserID && pack.UserID == userIDVal.(int)
+
+	var csrfTok string
 	if hasUserID {
-		isOwner = pack.UserID == userID.(int)
+		if tok, err := database.CreateCSRFToken(db, userIDVal.(int)); err == nil {
+			csrfTok = tok.Token
+		}
 	}
 
 	c.HTML(http.StatusOK, "checklist.html", gin.H{
@@ -1069,6 +1071,7 @@ func handlePackChecklist(c *gin.Context) {
 		"Pack":       pack,
 		"TotalItems": totalItems,
 		"IsOwner":    isOwner,
+		"CSRFToken":  csrfTok,
 	})
 }
 
@@ -1115,15 +1118,28 @@ func handlePackChecklistByShortID(c *gin.Context) {
 		return
 	}
 
+	// Load sub-items for checklist display
+	itemIDs := make([]int, 0, len(packWithItems.Items))
+	for _, pi := range packWithItems.Items {
+		itemIDs = append(itemIDs, pi.Item.ID)
+	}
+	subItemMap, _ := database.GetSubItemsForPackBulk(db, pack.ID, itemIDs)
+	for i := range packWithItems.Items {
+		packWithItems.Items[i].Item.SubItems = subItemMap[packWithItems.Items[i].Item.ID]
+	}
+
 	totalItems := 0
 	for _, packItem := range packWithItems.Items {
 		totalItems += packItem.Count
 	}
 
-	// Check if current user is the owner
-	isOwner := false
+	isOwner := hasUserID && packWithItems.UserID == userID.(int)
+
+	var csrfTok string
 	if hasUserID {
-		isOwner = packWithItems.UserID == userID.(int)
+		if tok, err := database.CreateCSRFToken(db, userID.(int)); err == nil {
+			csrfTok = tok.Token
+		}
 	}
 
 	c.HTML(http.StatusOK, "checklist.html", gin.H{
@@ -1132,6 +1148,7 @@ func handlePackChecklistByShortID(c *gin.Context) {
 		"Pack":       packWithItems,
 		"TotalItems": totalItems,
 		"IsOwner":    isOwner,
+		"CSRFToken":  csrfTok,
 	})
 }
 

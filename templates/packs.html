@@ -145,6 +145,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th style="width:2rem"></th>
                         <th>Pack Name</th>
                         <th>Permission</th>
                         <th>Actions</th>
@@ -153,6 +154,9 @@
                 <tbody>
                     {{range .SharedPacks}}
                     <tr class="clickable-row" onclick="window.location.href='/packs/{{.ID}}'">
+                        <td onclick="event.stopPropagation()" style="text-align:center">
+                            <input type="checkbox" class="compare-check standard-checkbox" value="{{.ID}}" onchange="updateCompareBtn()">
+                        </td>
                         <td>
                             <div class="pack-name-cell">
                                 {{.Name}}

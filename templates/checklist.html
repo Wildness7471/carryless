@@ -359,6 +359,9 @@
             font-weight: bold;
         }
 
+        .item-sub-row { opacity: .85; }
+        .item-sub-row.checked .item-name { text-decoration: line-through; color: #adb5bd; }
+
         .item-content {
             flex: 1;
             display: flex;
@@ -648,6 +651,14 @@
                                         </div>
                                     </div>
                                 </div>
+                                {{range $packItem.Item.SubItems}}
+                                <div class="item-row item-sub-row{{if .IsChecked}} checked{{end}}" data-sub-id="{{.ID}}" style="padding-left:2.5rem">
+                                    <div class="checkbox{{if .IsChecked}} checked{{end}}" onclick="toggleSubCheck(this, '{{$.Pack.ID}}', {{$itemId}}, {{.ID}})"></div>
+                                    <div class="item-content">
+                                        <span class="item-name" style="font-size:.9em;color:#6c757d">↳ {{.Name}}</span>
+                                    </div>
+                                </div>
+                                {{end}}
                             {{end}}
                         {{end}}
                     </div>
@@ -815,6 +826,23 @@
                     el.style.textShadow = textColor === 'white' ? '0 1px 1px rgba(0,0,0,0.2)' : 'none';
                 }
             });
+        }
+
+        // Sub-item toggle — persists to server for authenticated users
+        const CHECKLIST_PACK_ID = '{{.Pack.ID}}';
+        window.__csrfToken = '{{.CSRFToken}}';
+        async function toggleSubCheck(el, packID, itemID, subID) {
+            const wasChecked = el.classList.contains('checked');
+            const isChecked = !wasChecked;
+            el.classList.toggle('checked', isChecked);
+            el.closest('.item-sub-row').classList.toggle('checked', isChecked);
+            try {
+                await fetch(`/packs/${packID}/items/${itemID}/sub-items/${subID}/toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `is_checked=${isChecked ? 'true' : 'false'}&csrf_token=${encodeURIComponent(window.__csrfToken || '')}`,
+                });
+            } catch { /* offline — state held in DOM */ }
         }
 
         // Initialize on load
