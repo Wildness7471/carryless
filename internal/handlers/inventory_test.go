@@ -100,7 +100,8 @@ func TestParseCSVFile_RoundTrip(t *testing.T) {
 		t.Fatalf("Expected 1 item, got %d", len(items))
 	}
 
-	item := items[0]
+	imp := items[0]
+	item := imp.Item
 	if item.Name != "Tent" {
 		t.Errorf("Name: expected 'Tent', got '%s'", item.Name)
 	}
@@ -134,6 +135,9 @@ func TestParseCSVFile_RoundTrip(t *testing.T) {
 	if item.Link == nil || *item.Link != "https://example.com/tent" {
 		t.Errorf("Link: expected 'https://example.com/tent'")
 	}
+	if len(imp.SubItemNames) != 0 {
+		t.Errorf("SubItemNames: expected none for 12-field CSV, got %v", imp.SubItemNames)
+	}
 }
 
 // TestParseCSVFile_SmallFile verifies Bug 2+3 together: a small single-item CSV
@@ -161,7 +165,50 @@ func TestParseCSVFile_SmallFile(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("Expected 1 item, got %d", len(items))
 	}
-	if items[0].Name != "Tent" {
-		t.Errorf("Expected name 'Tent', got '%s'", items[0].Name)
+	if items[0].Item.Name != "Tent" {
+		t.Errorf("Expected name 'Tent', got '%s'", items[0].Item.Name)
+	}
+}
+
+// TestParseCSVFile_SubItems verifies the 13-field format with sub-items parses correctly.
+func TestParseCSVFile_SubItems(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	user, err := database.CreateUser(db, "testuser3", "test3@example.com", "password123")
+	if err != nil {
+		t.Fatal("Failed to create user:", err)
+	}
+
+	csv13 := "Name,Category,Weight (grams),Weight To Verify,Price,Notes,Brand,Model,Purchased,Capacity,Capacity Unit,Link,Sub-items\n" +
+		"Sleeping Bag,Sleep,800,false,200.00,Warm bag,,,,,,, Compression Sack ; Hood\n" +
+		"Tent,Shelter,1200,false,300.00,,,,,,,,\n"
+
+	f := newMemFile(csv13)
+	items, err := parseCSVFile(f, db, user.ID)
+	if err != nil {
+		t.Fatalf("parseCSVFile failed for 13-field format: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("Expected 2 items, got %d", len(items))
+	}
+
+	bag := items[0]
+	if bag.Item.Name != "Sleeping Bag" {
+		t.Errorf("Name: expected 'Sleeping Bag', got '%s'", bag.Item.Name)
+	}
+	if len(bag.SubItemNames) != 2 {
+		t.Fatalf("Expected 2 sub-items, got %d: %v", len(bag.SubItemNames), bag.SubItemNames)
+	}
+	if bag.SubItemNames[0] != "Compression Sack" {
+		t.Errorf("SubItem[0]: expected 'Compression Sack', got '%s'", bag.SubItemNames[0])
+	}
+	if bag.SubItemNames[1] != "Hood" {
+		t.Errorf("SubItem[1]: expected 'Hood', got '%s'", bag.SubItemNames[1])
+	}
+
+	tent := items[1]
+	if len(tent.SubItemNames) != 0 {
+		t.Errorf("Expected no sub-items for Tent, got %v", tent.SubItemNames)
 	}
 }

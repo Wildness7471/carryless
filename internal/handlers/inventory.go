@@ -667,12 +667,19 @@ func handleExportInventory(c *gin.Context) {
 		return
 	}
 
+	// Load all sub-items for all items in one query
+	itemIDs := make([]int, len(items))
+	for i, it := range items {
+		itemIDs[i] = it.ID
+	}
+	subItemMap, _ := database.GetSubItemsForPackBulk(db, "", itemIDs) // packID="" → no check state needed
+
 	// Create CSV content
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 
-	// Write header (extended with new fields)
-	header := []string{"Name", "Category", "Weight (grams)", "Weight To Verify", "Price", "Notes", "Brand", "Model", "Purchased", "Capacity", "Capacity Unit", "Link"}
+	// Write header (v13: added Sub-items column)
+	header := []string{"Name", "Category", "Weight (grams)", "Weight To Verify", "Price", "Notes", "Brand", "Model", "Purchased", "Capacity", "Capacity Unit", "Link", "Sub-items"}
 	if err := writer.Write(header); err != nil {
 		c.String(http.StatusInternalServerError, "Failed to generate CSV")
 		return
@@ -680,7 +687,6 @@ func handleExportInventory(c *gin.Context) {
 
 	// Write items
 	for _, item := range items {
-		// Convert optional fields to strings
 		brandStr := ""
 		if item.Brand != nil {
 			brandStr = *item.Brand
@@ -705,12 +711,17 @@ func handleExportInventory(c *gin.Context) {
 		if item.Link != nil {
 			linkStr = *item.Link
 		}
-
-		// Convert WeightToVerify to string
 		weightToVerifyStr := "false"
 		if item.WeightToVerify {
 			weightToVerifyStr = "true"
 		}
+
+		// Sub-items: semicolon-delimited names
+		subNames := make([]string, 0)
+		for _, s := range subItemMap[item.ID] {
+			subNames = append(subNames, s.Name)
+		}
+		subItemsStr := strings.Join(subNames, ";")
 
 		record := []string{
 			item.Name,
@@ -725,6 +736,7 @@ func handleExportInventory(c *gin.Context) {
 			capacityStr,
 			capacityUnitStr,
 			linkStr,
+			subItemsStr,
 		}
 		if err := writer.Write(record); err != nil {
 			c.String(http.StatusInternalServerError, "Failed to generate CSV")
@@ -738,7 +750,6 @@ func handleExportInventory(c *gin.Context) {
 		return
 	}
 
-	// Set headers for download
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", "attachment; filename=inventory.csv")
 	c.Data(http.StatusOK, "text/csv", buf.Bytes())
@@ -766,7 +777,7 @@ func handleImportInventory(c *gin.Context) {
 	file.Seek(0, 0)
 
 	// Parse CSV
-	items, err := parseCSVFile(file, db, userID)
+	importedItems, err := parseCSVFile(file, db, userID)
 	if err != nil {
 		c.Redirect(http.StatusFound, "/inventory?error=parse_error")
 		return
@@ -778,10 +789,17 @@ func handleImportInventory(c *gin.Context) {
 		return
 	}
 
-	for _, item := range items {
-		if _, err := database.CreateItem(db, userID, item); err != nil {
+	for _, imp := range importedItems {
+		created, err := database.CreateItem(db, userID, imp.Item)
+		if err != nil {
 			c.Redirect(http.StatusFound, "/inventory?error=import_error")
 			return
+		}
+		for _, name := range imp.SubItemNames {
+			if _, err := database.CreateSubItem(db, created.ID, name); err != nil {
+				// Non-fatal: log and continue
+				continue
+			}
 		}
 	}
 
@@ -823,11 +841,16 @@ func validateCSVFile(file multipart.File, header *multipart.FileHeader) error {
 	return nil
 }
 
-func parseCSVFile(file multipart.File, db *sql.DB, userID int) ([]models.Item, error) {
+type importedItem struct {
+	Item         models.Item
+	SubItemNames []string
+}
+
+func parseCSVFile(file multipart.File, db *sql.DB, userID int) ([]importedItem, error) {
 	reader := csv.NewReader(file)
 	reader.FieldsPerRecord = -1 // Allow variable number of fields for backward compatibility
 
-	var items []models.Item
+	var items []importedItem
 	lineNumber := 0
 
 	for {
@@ -851,9 +874,14 @@ func parseCSVFile(file multipart.File, db *sql.DB, userID int) ([]models.Item, e
 			return nil, fmt.Errorf("too many rows (max 10000)")
 		}
 
-		// Validate field count (5 = old format, 10 = legacy format with brand, 11 = format with model, 12 = new format with WeightToVerify)
-		if len(record) != 5 && len(record) != 10 && len(record) != 11 && len(record) != 12 {
-			return nil, fmt.Errorf("invalid number of fields at line %d (expected 5, 10, 11, or 12, got %d)", lineNumber, len(record))
+		// Validate field count:
+		//   5  = original format
+		//   10 = + brand/purchased/capacity/capacity unit/link (no model)
+		//   11 = + model
+		//   12 = + WeightToVerify
+		//   13 = + Sub-items (current)
+		if len(record) != 5 && len(record) != 10 && len(record) != 11 && len(record) != 12 && len(record) != 13 {
+			return nil, fmt.Errorf("invalid number of fields at line %d (expected 5, 10, 11, 12, or 13, got %d)", lineNumber, len(record))
 		}
 
 		name := strings.TrimSpace(record[0])
@@ -861,11 +889,11 @@ func parseCSVFile(file multipart.File, db *sql.DB, userID int) ([]models.Item, e
 		weightStr := strings.TrimSpace(record[2])
 
 		// Handle field indices based on format
-		// 12-field format has WeightToVerify at index 3, shifting price/note
+		// 12- and 13-field formats have WeightToVerify at index 3, shifting price/note
 		var weightToVerify bool
 		var priceStr, note string
-		if len(record) == 12 {
-			// 12-field format: WeightToVerify at index 3
+		if len(record) == 12 || len(record) == 13 {
+			// 12/13-field format: WeightToVerify at index 3
 			weightToVerifyStr := strings.ToLower(strings.TrimSpace(record[3]))
 			weightToVerify = (weightToVerifyStr == "true" || weightToVerifyStr == "1" || weightToVerifyStr == "yes")
 			priceStr = strings.TrimSpace(record[4])
@@ -913,14 +941,14 @@ func parseCSVFile(file multipart.File, db *sql.DB, userID int) ([]models.Item, e
 			Note:           note,
 		}
 
-		// Parse new optional fields if present (10-field, 11-field, or 12-field format)
+		// Parse new optional fields if present (10-field, 11-field, 12-field, or 13-field format)
 		if len(record) >= 10 {
 			// Determine field indices based on format
 			var brandIdx, modelIdx, purchaseDateIdx, capacityIdx, capacityUnitIdx, linkIdx int
 			var hasModel bool
 
-			if len(record) == 12 {
-				// 12-field format: WeightToVerify shifts all optional fields by 1
+			if len(record) == 12 || len(record) == 13 {
+				// 12/13-field format: WeightToVerify shifts all optional fields by 1
 				brandIdx = 6
 				modelIdx = 7
 				hasModel = true
@@ -1007,7 +1035,21 @@ func parseCSVFile(file multipart.File, db *sql.DB, userID int) ([]models.Item, e
 			}
 		}
 
-		items = append(items, item)
+		// Sub-items: semicolon-separated names in field 13 (index 12)
+		var subItemNames []string
+		if len(record) == 13 {
+			raw := strings.TrimSpace(record[12])
+			if raw != "" {
+				for _, name := range strings.Split(raw, ";") {
+					name = strings.TrimSpace(name)
+					if name != "" && len(name) <= 200 {
+						subItemNames = append(subItemNames, name)
+					}
+				}
+			}
+		}
+
+		items = append(items, importedItem{Item: item, SubItemNames: subItemNames})
 	}
 
 	return items, nil
