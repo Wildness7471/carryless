@@ -256,6 +256,25 @@
                                             </div>
                                         </td>
                                     </tr>
+                                    {{if .Item.SubItems}}
+                                    {{$packID2 := $.Pack.ID}}
+                                    {{$itemID2 := .Item.ID}}
+                                    <tr class="sub-items-table-row">
+                                        <td colspan="9" style="padding:.25rem 1rem .5rem 2rem;background:#f8f9fa">
+                                            <ul class="sub-item-checklist" style="padding:0;margin:0">
+                                                {{range .Item.SubItems}}
+                                                <li class="sub-item-check-row{{if .IsChecked}} checked{{end}}" data-sub-id="{{.ID}}" style="display:inline-flex;margin-right:1rem">
+                                                    <label>
+                                                        <input type="checkbox" {{if .IsChecked}}checked{{end}}
+                                                               onchange="toggleSubItem('{{$packID2}}', {{$itemID2}}, {{.ID}}, this.checked)">
+                                                        {{.Name}}
+                                                    </label>
+                                                </li>
+                                                {{end}}
+                                            </ul>
+                                        </td>
+                                    </tr>
+                                    {{end}}
                                 {{end}}
                             </tbody>
                         </table>
