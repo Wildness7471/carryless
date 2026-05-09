@@ -1346,7 +1346,7 @@ func handlePackCompare(c *gin.Context) {
 
 	ids := strings.Split(rawIDs, ",")
 	if len(ids) < 2 || len(ids) > 6 {
-		c.HTML(http.StatusBadRequest, "pack_compare.html", gin.H{
+		respond(c, http.StatusBadRequest, "pack_compare.html", gin.H{
 			"Title": "Compare Packs - Carryless",
 			"User":  user,
 			"Error": "Select between 2 and 6 packs to compare",
@@ -1370,7 +1370,7 @@ func handlePackCompare(c *gin.Context) {
 		}
 		perm := database.GetUserSharePermission(db, id, userID)
 		if perm == "none" {
-			c.HTML(http.StatusForbidden, "pack_compare.html", gin.H{
+			respond(c, http.StatusForbidden, "pack_compare.html", gin.H{
 				"Title": "Compare Packs - Carryless",
 				"User":  user,
 				"Error": "You do not have access to one or more of the selected packs",
@@ -1379,7 +1379,7 @@ func handlePackCompare(c *gin.Context) {
 		}
 		pack, err := database.GetPackWithItems(db, id)
 		if err != nil {
-			c.HTML(http.StatusNotFound, "pack_compare.html", gin.H{
+			respond(c, http.StatusNotFound, "pack_compare.html", gin.H{
 				"Title": "Compare Packs - Carryless",
 				"User":  user,
 				"Error": "One or more packs could not be found",
@@ -1415,7 +1415,7 @@ func handlePackCompare(c *gin.Context) {
 
 	csrfToken, err := database.CreateCSRFToken(db, userID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "pack_compare.html", gin.H{
+		respond(c, http.StatusInternalServerError, "pack_compare.html", gin.H{
 			"Title": "Compare Packs - Carryless",
 			"User":  user,
 			"Error": "Failed to generate security token",
