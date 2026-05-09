@@ -283,12 +283,30 @@ func handleActivate(c *gin.Context) {
 	logger.Info("User successfully activated",
 		"email", user.Email,
 		"user_id", user.ID)
-	
+
 	// Success - user is now activated
 	c.HTML(http.StatusOK, "activation_result.html", gin.H{
 		"Title":   "Account Activated - Carryless",
 		"Success": true,
 		"Message": "Congratulations! Your account has been successfully activated. You can now log in and start using all features of Carryless.",
 		"ShowLoginButton": true,
+	})
+}
+
+// handleCreateBearerToken exchanges the current cookie session for a long-lived
+// bearer token suitable for API / mobile clients.
+func handleCreateBearerToken(c *gin.Context) {
+	db := c.MustGet("db").(*sql.DB)
+	userID := c.MustGet("user_id").(int)
+
+	token, expiresAt, err := database.CreateBearerToken(db, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":      token,
+		"expires_at": expiresAt,
 	})
 }

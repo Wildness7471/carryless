@@ -1,0 +1,232 @@
+{{define "pack_shares.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    {{template "header" .}}
+
+    <main class="main">
+        {{if .Error}}
+            <div class="alert alert-error">{{.Error}}</div>
+        {{end}}
+
+        <div class="page-header">
+            <h1>Share "{{.Pack.Name}}"</h1>
+            <a href="/packs/{{.Pack.ID}}" class="btn btn-secondary">Back to Pack</a>
+        </div>
+
+        <!-- Add person by username/email -->
+        <div class="form-container" style="margin-bottom:2rem">
+            <h2>Invite someone</h2>
+            <div class="form-group">
+                <label for="user-search">Username or email</label>
+                <input type="text" id="user-search" placeholder="Search users…" autocomplete="off" class="form-control">
+                <ul id="user-suggestions" class="suggestions-list" style="display:none"></ul>
+            </div>
+            <div class="form-group">
+                <label for="share-permission">Permission</label>
+                <select id="share-permission" class="form-control">
+                    <option value="view">View — read-only</option>
+                    <option value="add">Add items — can add/remove items</option>
+                    <option value="edit">Edit — can edit pack metadata and items</option>
+                    <option value="admin">Admin — can manage shares</option>
+                </select>
+            </div>
+            <button id="invite-btn" class="btn btn-primary" disabled>Send invite</button>
+            <div id="invite-msg" class="alert" style="display:none;margin-top:1rem"></div>
+        </div>
+
+        <!-- Current shares -->
+        <div class="form-container" style="margin-bottom:2rem">
+            <h2>Current shares</h2>
+            {{if .Shares}}
+            <table class="table">
+                <thead>
+                    <tr><th>User</th><th>Permission</th><th></th></tr>
+                </thead>
+                <tbody id="shares-table">
+                {{range .Shares}}
+                <tr data-user-id="{{.SharedWithUserID}}">
+                    <td>{{.SharedWithUser.Username}} <span class="text-muted">({{.SharedWithUser.Email}})</span></td>
+                    <td>
+                        <select class="perm-select form-control" data-user-id="{{.SharedWithUserID}}" style="width:auto">
+                            <option value="view" {{if eq .Permission "view"}}selected{{end}}>View</option>
+                            <option value="add" {{if eq .Permission "add"}}selected{{end}}>Add items</option>
+                            <option value="edit" {{if eq .Permission "edit"}}selected{{end}}>Edit</option>
+                            <option value="admin" {{if eq .Permission "admin"}}selected{{end}}>Admin</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button class="btn btn-danger btn-sm revoke-btn" data-user-id="{{.SharedWithUserID}}">Revoke</button>
+                    </td>
+                </tr>
+                {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p class="text-muted">No one has access to this pack yet.</p>
+            {{end}}
+        </div>
+
+        <!-- Invite links -->
+        <div class="form-container">
+            <h2>Invite links</h2>
+            <p class="text-muted">Anyone with this link can join the pack. Links expire after 7 days.</p>
+            <div style="display:flex;gap:1rem;align-items:flex-end;margin-bottom:1rem">
+                <div class="form-group" style="margin:0">
+                    <label for="link-permission">Permission for link</label>
+                    <select id="link-permission" class="form-control">
+                        <option value="view">View</option>
+                        <option value="add">Add items</option>
+                        <option value="edit">Edit</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <button id="create-link-btn" class="btn btn-secondary">Create invite link</button>
+            </div>
+            <div id="invite-links">
+            {{range .Invites}}
+            <div class="invite-link-row" data-invite-id="{{.ID}}" style="display:flex;gap:1rem;align-items:center;margin-bottom:.5rem">
+                <input type="text" readonly value="{{$.RequestHost}}/invite/{{.Token}}" class="form-control" style="flex:1" onclick="this.select()">
+                <span class="badge">{{.Permission}}</span>
+                <span class="text-muted" style="white-space:nowrap">expires {{.ExpiresAt.Format "Jan 2"}}</span>
+                <button class="btn btn-danger btn-sm delete-link-btn" data-invite-id="{{.ID}}">Delete</button>
+            </div>
+            {{end}}
+            </div>
+            <div id="link-msg" class="alert" style="display:none;margin-top:1rem"></div>
+        </div>
+    </main>
+
+    {{template "footer" .}}
+
+    <script src="/static/js/app.js"></script>
+    <script>
+    const PACK_ID = '{{.Pack.ID}}';
+    const CSRF = '{{.CSRFToken}}';
+
+    // --- User search autocomplete ---
+    let selectedUserID = null;
+    const searchInput = document.getElementById('user-search');
+    const suggestions = document.getElementById('user-suggestions');
+    const inviteBtn = document.getElementById('invite-btn');
+    const inviteMsg = document.getElementById('invite-msg');
+
+    searchInput.addEventListener('input', async () => {
+        const q = searchInput.value.trim();
+        selectedUserID = null;
+        inviteBtn.disabled = true;
+        if (q.length < 2) { suggestions.style.display = 'none'; return; }
+
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`, {
+            headers: { 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+        suggestions.innerHTML = '';
+        if (!data.users || data.users.length === 0) {
+            suggestions.style.display = 'none';
+            return;
+        }
+        data.users.forEach(u => {
+            const li = document.createElement('li');
+            li.textContent = `${u.username} (${u.email})`;
+            li.dataset.id = u.id;
+            li.dataset.username = u.username;
+            li.addEventListener('click', () => {
+                selectedUserID = u.id;
+                searchInput.value = u.username;
+                suggestions.style.display = 'none';
+                inviteBtn.disabled = false;
+            });
+            suggestions.appendChild(li);
+        });
+        suggestions.style.display = 'block';
+    });
+
+    inviteBtn.addEventListener('click', async () => {
+        if (!selectedUserID) return;
+        const permission = document.getElementById('share-permission').value;
+        const res = await apiRequest(`/packs/${PACK_ID}/shares`, {
+            method: 'POST',
+            body: new URLSearchParams({ username_or_email: searchInput.value, permission, csrf_token: CSRF })
+        });
+        const data = await res.json();
+        showMsg(inviteMsg, res.ok ? `${data.username} can now ${permission} this pack.` : data.error, res.ok);
+        if (res.ok) { searchInput.value = ''; selectedUserID = null; inviteBtn.disabled = true; location.reload(); }
+    });
+
+    // --- Permission update ---
+    document.querySelectorAll('.perm-select').forEach(sel => {
+        sel.addEventListener('change', async () => {
+            const uid = sel.dataset.userId;
+            const res = await apiRequest(`/packs/${PACK_ID}/shares/${uid}`, {
+                method: 'POST',
+                body: new URLSearchParams({ permission: sel.value, csrf_token: CSRF })
+            });
+            if (!res.ok) { const d = await res.json(); alert(d.error); }
+        });
+    });
+
+    // --- Revoke ---
+    document.querySelectorAll('.revoke-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (!confirm('Revoke access for this user?')) return;
+            const uid = btn.dataset.userId;
+            const res = await apiRequest(`/packs/${PACK_ID}/shares/${uid}`, { method: 'DELETE', body: new URLSearchParams({csrf_token: CSRF}) });
+            if (res.ok) { btn.closest('tr').remove(); }
+            else { const d = await res.json(); alert(d.error); }
+        });
+    });
+
+    // --- Create invite link ---
+    document.getElementById('create-link-btn').addEventListener('click', async () => {
+        const permission = document.getElementById('link-permission').value;
+        const res = await apiRequest(`/packs/${PACK_ID}/invites`, {
+            method: 'POST',
+            body: new URLSearchParams({ permission, csrf_token: CSRF })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            const url = `${location.origin}/invite/${data.token}`;
+            const row = document.createElement('div');
+            row.className = 'invite-link-row';
+            row.dataset.inviteId = data.id || '';
+            row.style.cssText = 'display:flex;gap:1rem;align-items:center;margin-bottom:.5rem';
+            row.innerHTML = `<input type="text" readonly value="${escapeHtml(url)}" class="form-control" style="flex:1" onclick="this.select()">
+                <span class="badge">${escapeHtml(data.permission)}</span>
+                <button class="btn btn-danger btn-sm delete-link-btn">Delete</button>`;
+            document.getElementById('invite-links').appendChild(row);
+            showMsg(document.getElementById('link-msg'), 'Invite link created!', true);
+        } else {
+            showMsg(document.getElementById('link-msg'), data.error, false);
+        }
+    });
+
+    // --- Delete invite link ---
+    document.getElementById('invite-links').addEventListener('click', async (e) => {
+        const btn = e.target.closest('.delete-link-btn');
+        if (!btn) return;
+        const row = btn.closest('.invite-link-row');
+        const inviteId = row.dataset.inviteId;
+        if (!inviteId) { row.remove(); return; }
+        const res = await apiRequest(`/packs/${PACK_ID}/invites/${inviteId}`, { method: 'DELETE', body: new URLSearchParams({csrf_token: CSRF}) });
+        if (res.ok) row.remove();
+    });
+
+    function showMsg(el, text, ok) {
+        el.textContent = text;
+        el.className = `alert ${ok ? 'alert-success' : 'alert-error'}`;
+        el.style.display = 'block';
+        setTimeout(() => { el.style.display = 'none'; }, 4000);
+    }
+    </script>
+</body>
+</html>
+{{end}}

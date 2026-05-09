@@ -10,7 +10,7 @@ import (
 )
 
 func Initialize(dbPath string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
+	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -196,6 +196,77 @@ func Migrate(db *sql.DB) error {
 		return fmt.Errorf("failed to create user_pack_labels tables: %w", err)
 	}
 
+	// Create pack sharing tables if they don't exist
+	if err := createPackSharingTables(db); err != nil {
+		return fmt.Errorf("failed to create pack sharing tables: %w", err)
+	}
+
+	if err := createSubItemsTables(db); err != nil {
+		return fmt.Errorf("failed to create sub-items tables: %w", err)
+	}
+
+	return nil
+}
+
+func createSubItemsTables(db *sql.DB) error {
+	migrations := []string{
+		`CREATE TABLE IF NOT EXISTS item_sub_items (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			item_id    INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+			name       TEXT NOT NULL,
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_item_sub_items_item_id ON item_sub_items(item_id)`,
+		`CREATE TABLE IF NOT EXISTS pack_sub_item_checks (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			pack_id     TEXT    NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+			sub_item_id INTEGER NOT NULL REFERENCES item_sub_items(id) ON DELETE CASCADE,
+			is_checked  INTEGER NOT NULL DEFAULT 0,
+			updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(pack_id, sub_item_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_pack_sub_item_checks_pack ON pack_sub_item_checks(pack_id)`,
+	}
+	for _, m := range migrations {
+		if _, err := db.Exec(m); err != nil {
+			return fmt.Errorf("failed to run sub-items migration: %w", err)
+		}
+	}
+	return nil
+}
+
+func createPackSharingTables(db *sql.DB) error {
+	migrations := []string{
+		`CREATE TABLE IF NOT EXISTS pack_shares (
+			id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+			pack_id               TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+			owner_id              INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			shared_with_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			permission            TEXT NOT NULL CHECK(permission IN ('view','add','edit','admin')),
+			created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(pack_id, shared_with_user_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS pack_invites (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			pack_id    TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+			owner_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			token      TEXT UNIQUE NOT NULL,
+			permission TEXT NOT NULL CHECK(permission IN ('view','add','edit','admin')),
+			expires_at DATETIME NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_pack_shares_pack_id ON pack_shares(pack_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_pack_shares_shared_with ON pack_shares(shared_with_user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_pack_invites_token ON pack_invites(token)`,
+	}
+	for _, m := range migrations {
+		if _, err := db.Exec(m); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

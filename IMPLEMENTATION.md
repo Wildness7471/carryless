@@ -17,36 +17,36 @@ If you hit a usage limit, check this file first. The status table shows exactly 
 | 0 | Label tests (pack labels, user pack labels, assign/remove) | ✅ |
 | 0 | Item link tests (create, delete, get, self-link error) | ✅ |
 | 0 | Trip tests (CRUD, add pack, checklist, transport) | ✅ |
-| 1a | WAL mode + busy_timeout added to SQLite DSN | ⬜ |
-| 1a | `CreateBearerToken` + `ValidateBearerToken` in auth.go | ⬜ |
-| 1a | Bearer token accepted in middleware (alongside cookie) | ⬜ |
-| 1a | `POST /api/auth/token` handler + route | ⬜ |
-| 1b | `PackShare` + `PackInvite` models in models.go | ⬜ |
-| 1b | `pack_shares` + `pack_invites` table migrations | ⬜ |
-| 1b | `internal/database/pack_shares.go` DB functions | ⬜ |
-| 1b | `internal/database/pack_shares_test.go` tests | ⬜ |
-| 1b | `packPermission()` helper in handlers | ⬜ |
-| 1b | `respond()` content-negotiation helper in handlers | ⬜ |
-| 1b | Existing pack handlers updated with permission checks | ⬜ |
-| 1b | `internal/handlers/pack_shares.go` share handlers | ⬜ |
-| 1b | Routes registered in handlers.go | ⬜ |
-| 1b | `GET /api/users/search` JSON endpoint | ⬜ |
-| 1b | `templates/pack_shares.html` sharing UI | ⬜ |
-| 1b | `/packs` page shows "Shared with me" section | ⬜ |
-| 1b | Owner-only inventory delete enforced | ⬜ |
-| 2 | `handlePackCompare` handler | ⬜ |
-| 2 | `GET /packs/compare` route registered | ⬜ |
-| 2 | `templates/pack_compare.html` side-by-side UI | ⬜ |
-| 2 | `static/js/pack_compare.js` drag-and-drop + move buttons | ⬜ |
-| 2 | `/packs` page: checkbox multi-select + Compare button | ⬜ |
-| 3 | `item_sub_items` + `pack_sub_item_checks` migrations | ⬜ |
-| 3 | `ItemSubItem` model + `SubItems` field on `Item` | ⬜ |
-| 3 | `internal/database/sub_items.go` DB functions | ⬜ |
-| 3 | `internal/database/sub_items_test.go` tests | ⬜ |
-| 3 | Sub-item editor in item create/edit pages | ⬜ |
-| 3 | Sub-item API routes registered | ⬜ |
-| 3 | Pack checklist UI: indented sub-items, indeterminate state | ⬜ |
-| 3 | `localStorage` offline fallback + sync-on-reconnect | ⬜ |
+| 1a | WAL mode + busy_timeout added to SQLite DSN | ✅ |
+| 1a | `CreateBearerToken` + `ValidateBearerToken` in auth.go | ✅ |
+| 1a | Bearer token accepted in middleware (alongside cookie) | ✅ |
+| 1a | `POST /api/auth/token` handler + route | ✅ |
+| 1b | `PackShare` + `PackInvite` models in models.go | ✅ |
+| 1b | `pack_shares` + `pack_invites` table migrations | ✅ |
+| 1b | `internal/database/pack_shares.go` DB functions | ✅ |
+| 1b | `internal/database/pack_shares_test.go` tests | ✅ |
+| 1b | `packPermission()` helper in handlers | ✅ |
+| 1b | `respond()` content-negotiation helper in handlers | ✅ |
+| 1b | Existing pack handlers updated with permission checks | ✅ |
+| 1b | `internal/handlers/pack_shares.go` share handlers | ✅ |
+| 1b | Routes registered in handlers.go | ✅ |
+| 1b | `GET /api/users/search` JSON endpoint | ✅ |
+| 1b | `templates/pack_shares.html` sharing UI | ✅ |
+| 1b | `/packs` page shows "Shared with me" section | ✅ |
+| 1b | Owner-only inventory delete enforced | ✅ |
+| 2 | `handlePackCompare` handler | ✅ |
+| 2 | `GET /packs/compare` route registered | ✅ |
+| 2 | `templates/pack_compare.html` side-by-side UI | ✅ |
+| 2 | `static/js/pack_compare.js` drag-and-drop + move buttons | ✅ |
+| 2 | `/packs` page: checkbox multi-select + Compare button | ✅ |
+| 3 | `item_sub_items` + `pack_sub_item_checks` migrations | ✅ |
+| 3 | `ItemSubItem` model + `SubItems` field on `Item` | ✅ |
+| 3 | `internal/database/sub_items.go` DB functions | ✅ |
+| 3 | `internal/database/sub_items_test.go` tests | ✅ |
+| 3 | Sub-item editor in item create/edit pages | ✅ |
+| 3 | Sub-item API routes registered | ✅ |
+| 3 | Pack checklist UI: indented sub-items, indeterminate state | ✅ |
+| 3 | `localStorage` offline fallback + sync-on-reconnect | ✅ |
 
 **Status key:** ⬜ Not started | 🔄 In progress | ✅ Done
 

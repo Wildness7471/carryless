@@ -393,18 +393,33 @@ func CSRFWithRenewal(cfg *config.Config) gin.HandlerFunc {
 
 func AuthRequired(db *sql.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sessionCookie, err := c.Cookie("session_id")
-		if err != nil {
-			c.Redirect(http.StatusFound, "/login")
-			c.Abort()
-			return
+		var user *models.User
+
+		// Cookie auth (web clients)
+		if sessionCookie, err := c.Cookie("session_id"); err == nil {
+			if u, err := database.ValidateSession(db, sessionCookie, cfg.SessionDuration); err == nil {
+				user = u
+			} else {
+				c.SetSameSite(http.SameSiteStrictMode)
+				c.SetCookie("session_id", "", -1, "/", "", true, true)
+			}
 		}
 
-		user, err := database.ValidateSession(db, sessionCookie, cfg.SessionDuration)
-		if err != nil {
-			c.SetSameSite(http.SameSiteStrictMode)
-			c.SetCookie("session_id", "", -1, "/", "", true, true)
-			c.Redirect(http.StatusFound, "/login")
+		// Bearer token auth (API / mobile clients)
+		if user == nil {
+			if authHeader := c.GetHeader("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+				token := strings.TrimPrefix(authHeader, "Bearer ")
+				user, _ = database.ValidateBearerToken(db, token)
+			}
+		}
+
+		if user == nil {
+			// API clients receive 401; browser clients are redirected to login
+			if c.GetHeader("Authorization") != "" || c.GetHeader("Accept") == "application/json" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			} else {
+				c.Redirect(http.StatusFound, "/login")
+			}
 			c.Abort()
 			return
 		}
@@ -418,13 +433,24 @@ func AuthRequired(db *sql.DB, cfg *config.Config) gin.HandlerFunc {
 
 func AuthOptional(db *sql.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sessionCookie, err := c.Cookie("session_id")
-		if err == nil {
-			user, err := database.ValidateSession(db, sessionCookie, cfg.SessionDuration)
-			if err == nil {
-				c.Set("user", user)
-				c.Set("user_id", user.ID)
+		var user *models.User
+
+		if sessionCookie, err := c.Cookie("session_id"); err == nil {
+			if u, err := database.ValidateSession(db, sessionCookie, cfg.SessionDuration); err == nil {
+				user = u
 			}
+		}
+
+		if user == nil {
+			if authHeader := c.GetHeader("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+				token := strings.TrimPrefix(authHeader, "Bearer ")
+				user, _ = database.ValidateBearerToken(db, token)
+			}
+		}
+
+		if user != nil {
+			c.Set("user", user)
+			c.Set("user_id", user.ID)
 		}
 		c.Set("db", db)
 		c.Next()

@@ -8,9 +8,45 @@ import (
 
 	"carryless/internal/database"
 	"carryless/internal/logger"
+	"carryless/internal/models"
 
 	"github.com/gin-gonic/gin"
 )
+
+// packPermission returns the caller's effective permission on the given pack and
+// the pack itself (fetched without user filter). Returns ("none", nil) if not found.
+func packPermission(c *gin.Context, packID string) (string, *models.Pack) {
+	db := c.MustGet("db").(*sql.DB)
+	userID := c.MustGet("user_id").(int)
+	pack, err := database.GetPack(db, packID)
+	if err != nil {
+		return "none", nil
+	}
+	perm := database.GetUserSharePermission(db, packID, userID)
+	pack.UserPermission = perm
+	return perm, pack
+}
+
+// respond sends HTML or JSON depending on the Accept header.
+func respond(c *gin.Context, status int, tmpl string, data gin.H) {
+	if c.GetHeader("Accept") == "application/json" {
+		c.JSON(status, data)
+	} else {
+		c.HTML(status, tmpl, data)
+	}
+}
+
+func forbidden403(c *gin.Context) {
+	user, _ := c.Get("user")
+	if c.GetHeader("Accept") == "application/json" || c.GetHeader("Authorization") != "" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+	} else {
+		c.HTML(http.StatusForbidden, "403.html", gin.H{
+			"Title": "Access Denied - Carryless",
+			"User":  user,
+		})
+	}
+}
 
 func handlePacks(c *gin.Context) {
 	userID := c.MustGet("user_id").(int)
@@ -23,6 +59,16 @@ func handlePacks(c *gin.Context) {
 			"Title": "Packs - Carryless",
 			"User":  user,
 			"Error": "Failed to load packs",
+		})
+		return
+	}
+
+	sharedPacks, err := database.GetPacksSharedWithUser(db, userID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "packs.html", gin.H{
+			"Title": "Packs - Carryless",
+			"User":  user,
+			"Error": "Failed to load shared packs",
 		})
 		return
 	}
@@ -48,10 +94,11 @@ func handlePacks(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "packs.html", gin.H{
+	respond(c, http.StatusOK, "packs.html", gin.H{
 		"Title":          "Packs - Carryless",
 		"User":           user,
 		"Packs":          packs,
+		"SharedPacks":    sharedPacks,
 		"UserPackLabels": userPackLabels,
 		"CSRFToken":      csrfToken.Token,
 	})
@@ -126,15 +173,17 @@ func handlePackDetail(c *gin.Context) {
 	userID := c.MustGet("user_id").(int)
 	user := c.MustGet("user")
 
+	perm, _ := packPermission(c, packID)
+	if perm == "none" {
+		c.HTML(http.StatusNotFound, "404.html", gin.H{
+			"Title": "Pack Not Found - Carryless",
+			"User":  user,
+		})
+		return
+	}
+
 	pack, err := database.GetPackWithItems(db, packID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			c.HTML(http.StatusNotFound, "404.html", gin.H{
-				"Title": "Pack Not Found - Carryless",
-				"User":  user,
-			})
-			return
-		}
 		c.HTML(http.StatusInternalServerError, "pack_detail.html", gin.H{
 			"Title": "Pack Detail - Carryless",
 			"User":  user,
@@ -142,13 +191,12 @@ func handlePackDetail(c *gin.Context) {
 		})
 		return
 	}
+	pack.UserPermission = perm
 
-	if pack.UserID != userID {
-		c.HTML(http.StatusForbidden, "403.html", gin.H{
-			"Title": "Access Denied - Carryless",
-			"User":  user,
-		})
-		return
+	// Load shares for the manage-shares link (visible to admin/owner)
+	if database.CanAdmin(perm) {
+		shares, _ := database.GetPackShares(db, packID)
+		pack.Shares = shares
 	}
 
 	items, err := database.GetItems(db, userID)
@@ -213,6 +261,16 @@ func handlePackDetail(c *gin.Context) {
 		}
 	}
 
+	// Load sub-items for all items in the pack (one query)
+	itemIDs := make([]int, 0, len(pack.Items))
+	for _, pi := range pack.Items {
+		itemIDs = append(itemIDs, pi.Item.ID)
+	}
+	subItemMap, _ := database.GetSubItemsForPackBulk(db, packID, itemIDs)
+	for i := range pack.Items {
+		pack.Items[i].Item.SubItems = subItemMap[pack.Items[i].Item.ID]
+	}
+
 	csrfToken, err := database.CreateCSRFToken(db, userID)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "pack_detail.html", gin.H{
@@ -224,10 +282,16 @@ func handlePackDetail(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "pack_detail.html", gin.H{
+	respond(c, http.StatusOK, "pack_detail.html", gin.H{
 		"Title":               "Pack Detail - Carryless",
 		"User":                user,
 		"Pack":                pack,
+		"UserPermission":      perm,
+		"CanWrite":            database.CanWrite(perm),
+		"CanEdit":             database.CanEdit(perm),
+		"CanAdmin":            database.CanAdmin(perm),
+		"IsOwner":             perm == "owner",
+		"CurrentUserID":       userID,
 		"Items":               items,
 		"ItemsInPack":         itemsInPack,
 		"CategoryWeights":     categoryWeights,
@@ -424,8 +488,8 @@ func handleEditPackPage(c *gin.Context) {
 	user := c.MustGet("user")
 	packID := c.Param("id")
 
-	pack, err := database.GetPack(db, packID)
-	if err != nil {
+	perm, pack := packPermission(c, packID)
+	if pack == nil {
 		c.HTML(http.StatusNotFound, "edit_pack.html", gin.H{
 			"Title": "Edit Pack - Carryless",
 			"User":  user,
@@ -433,15 +497,11 @@ func handleEditPackPage(c *gin.Context) {
 		})
 		return
 	}
-
-	if pack.UserID != userID {
-		c.HTML(http.StatusForbidden, "edit_pack.html", gin.H{
-			"Title": "Edit Pack - Carryless",
-			"User":  user,
-			"Error": "Access denied",
-		})
+	if !database.CanAdmin(perm) {
+		forbidden403(c)
 		return
 	}
+	_ = userID
 
 	csrfToken, err := database.CreateCSRFToken(db, userID)
 	if err != nil {
@@ -531,9 +591,18 @@ func handleDeletePack(c *gin.Context) {
 }
 
 func handleUpdatePackNote(c *gin.Context) {
-	userID := c.MustGet("user_id").(int)
 	db := c.MustGet("db").(*sql.DB)
 	packID := c.Param("id")
+
+	perm, pack := packPermission(c, packID)
+	if pack == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pack not found"})
+		return
+	}
+	if !database.CanEdit(perm) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permission"})
+		return
+	}
 
 	note := strings.TrimSpace(c.PostForm("note"))
 
@@ -543,7 +612,7 @@ func handleUpdatePackNote(c *gin.Context) {
 		return
 	}
 
-	err := database.UpdatePackNote(db, userID, packID, note)
+	err := database.UpdatePackNote(db, pack.UserID, packID, note)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Pack not found"})
@@ -568,6 +637,16 @@ func handleAddItemToPack(c *gin.Context) {
 	db := c.MustGet("db").(*sql.DB)
 	packID := c.Param("id")
 
+	perm, pack := packPermission(c, packID)
+	if pack == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pack not found"})
+		return
+	}
+	if !database.CanWrite(perm) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permission"})
+		return
+	}
+
 	itemIDStr := c.PostForm("item_id")
 	itemID, err := strconv.Atoi(itemIDStr)
 	if err != nil {
@@ -575,17 +654,18 @@ func handleAddItemToPack(c *gin.Context) {
 		return
 	}
 
-	err = database.AddItemToPack(db, packID, itemID, userID)
-	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+	var addErr error
+	if perm == "owner" {
+		addErr = database.AddItemToPack(db, packID, itemID, userID)
+	} else {
+		addErr = database.AddItemToPackAsSharedUser(db, packID, itemID, userID)
+	}
+	if addErr != nil {
+		if strings.Contains(addErr.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Pack or item not found"})
 			return
 		}
-		if strings.Contains(err.Error(), "unauthorized") {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
-			return
-		}
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+		if strings.Contains(addErr.Error(), "UNIQUE constraint failed") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Item already in pack"})
 			return
 		}
@@ -597,9 +677,18 @@ func handleAddItemToPack(c *gin.Context) {
 }
 
 func handleRemoveItemFromPack(c *gin.Context) {
-	userID := c.MustGet("user_id").(int)
 	db := c.MustGet("db").(*sql.DB)
 	packID := c.Param("id")
+
+	perm, pack := packPermission(c, packID)
+	if pack == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pack not found"})
+		return
+	}
+	if !database.CanWrite(perm) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permission"})
+		return
+	}
 
 	itemIDStr := c.Param("item_id")
 	itemID, err := strconv.Atoi(itemIDStr)
@@ -608,14 +697,10 @@ func handleRemoveItemFromPack(c *gin.Context) {
 		return
 	}
 
-	err = database.RemoveItemFromPack(db, packID, itemID, userID)
+	err = database.RemoveItemFromPack(db, packID, itemID, pack.UserID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Pack or item not found"})
-			return
-		}
-		if strings.Contains(err.Error(), "unauthorized") {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove item from pack"})
@@ -626,9 +711,18 @@ func handleRemoveItemFromPack(c *gin.Context) {
 }
 
 func handleToggleWorn(c *gin.Context) {
-	userID := c.MustGet("user_id").(int)
 	db := c.MustGet("db").(*sql.DB)
 	packID := c.Param("id")
+
+	perm, pack := packPermission(c, packID)
+	if pack == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pack not found"})
+		return
+	}
+	if !database.CanWrite(perm) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permission"})
+		return
+	}
 
 	itemIDStr := c.Param("item_id")
 	itemID, err := strconv.Atoi(itemIDStr)
@@ -640,14 +734,10 @@ func handleToggleWorn(c *gin.Context) {
 	isWornStr := c.PostForm("is_worn")
 	isWorn := isWornStr == "true" || isWornStr == "1"
 
-	err = database.TogglePackItemWorn(db, packID, itemID, userID, isWorn)
+	err = database.TogglePackItemWorn(db, packID, itemID, pack.UserID, isWorn)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Pack or item not found"})
-			return
-		}
-		if strings.Contains(err.Error(), "unauthorized") {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update worn status"})
@@ -658,9 +748,18 @@ func handleToggleWorn(c *gin.Context) {
 }
 
 func handleUpdateWornCount(c *gin.Context) {
-	userID := c.MustGet("user_id").(int)
 	db := c.MustGet("db").(*sql.DB)
 	packID := c.Param("id")
+
+	perm, pack := packPermission(c, packID)
+	if pack == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pack not found"})
+		return
+	}
+	if !database.CanWrite(perm) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permission"})
+		return
+	}
 
 	itemIDStr := c.Param("item_id")
 	itemID, err := strconv.Atoi(itemIDStr)
@@ -676,14 +775,10 @@ func handleUpdateWornCount(c *gin.Context) {
 		return
 	}
 
-	err = database.UpdatePackItemWornCount(db, packID, itemID, userID, wornCount)
+	err = database.UpdatePackItemWornCount(db, packID, itemID, pack.UserID, wornCount)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Pack or item not found"})
-			return
-		}
-		if strings.Contains(err.Error(), "unauthorized") {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update worn count"})
@@ -1218,4 +1313,104 @@ func handleRemovePackLevelLabel(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Label removed successfully"})
+}
+// handlePackCompare handles GET /packs/compare?packs=id1,id2,...
+// The user must have at least "view" permission on each pack.
+func handlePackCompare(c *gin.Context) {
+	userID := c.MustGet("user_id").(int)
+	db := c.MustGet("db").(*sql.DB)
+	user := c.MustGet("user")
+
+	rawIDs := c.Query("packs")
+	if rawIDs == "" {
+		c.Redirect(http.StatusFound, "/packs")
+		return
+	}
+
+	ids := strings.Split(rawIDs, ",")
+	if len(ids) < 2 || len(ids) > 6 {
+		c.HTML(http.StatusBadRequest, "pack_compare.html", gin.H{
+			"Title": "Compare Packs - Carryless",
+			"User":  user,
+			"Error": "Select between 2 and 6 packs to compare",
+		})
+		return
+	}
+
+	type comparePack struct {
+		Pack            *models.Pack
+		TotalWeight     int
+		TotalWornWeight int
+		TotalItemCount  int
+		CategoryWeights map[string]int
+	}
+
+	packs := make([]comparePack, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		perm := database.GetUserSharePermission(db, id, userID)
+		if perm == "none" {
+			c.HTML(http.StatusForbidden, "pack_compare.html", gin.H{
+				"Title": "Compare Packs - Carryless",
+				"User":  user,
+				"Error": "You do not have access to one or more of the selected packs",
+			})
+			return
+		}
+		pack, err := database.GetPackWithItems(db, id)
+		if err != nil {
+			c.HTML(http.StatusNotFound, "pack_compare.html", gin.H{
+				"Title": "Compare Packs - Carryless",
+				"User":  user,
+				"Error": "One or more packs could not be found",
+			})
+			return
+		}
+		pack.UserPermission = perm
+
+		totalWeight := 0
+		totalWornWeight := 0
+		totalItemCount := 0
+		categoryWeights := make(map[string]int)
+
+		for _, pi := range pack.Items {
+			packWeight := pi.Item.WeightGrams * (pi.Count - pi.WornCount)
+			wornWeight := pi.Item.WeightGrams * pi.WornCount
+			totalWeight += packWeight
+			totalWornWeight += wornWeight
+			totalItemCount += pi.Count
+			if pi.Item.Category != nil {
+				categoryWeights[pi.Item.Category.Name] += packWeight + wornWeight
+			}
+		}
+
+		packs = append(packs, comparePack{
+			Pack:            pack,
+			TotalWeight:     totalWeight,
+			TotalWornWeight: totalWornWeight,
+			TotalItemCount:  totalItemCount,
+			CategoryWeights: categoryWeights,
+		})
+	}
+
+	csrfToken, err := database.CreateCSRFToken(db, userID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "pack_compare.html", gin.H{
+			"Title": "Compare Packs - Carryless",
+			"User":  user,
+			"Error": "Failed to generate security token",
+		})
+		return
+	}
+
+	respond(c, http.StatusOK, "pack_compare.html", gin.H{
+		"Title":     "Compare Packs - Carryless",
+		"User":      user,
+		"Packs":     packs,
+		"CSRFToken": csrfToken.Token,
+		"PackIDs":   rawIDs,
+	})
 }

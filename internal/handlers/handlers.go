@@ -41,6 +41,8 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, emailService *email.Service, cfg *co
 		protected.POST("/account/currency", handleChangeCurrency)
 		protected.POST("/account/username", handleChangeUsername)
 		protected.GET("/api/csrf-token", handleCSRFToken)
+		protected.POST("/api/auth/token", handleCreateBearerToken)
+		protected.GET("/invite/:token", handleRedeemInvite)
 	}
 
 	// Routes that require activation (content creation/modification)
@@ -68,6 +70,12 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, emailService *email.Service, cfg *co
 		activated.POST("/api/items/:id/links", handleCreateItemLink)
 		activated.DELETE("/api/items/:id/links/:linked_id", handleDeleteItemLink)
 
+		// Sub-items API
+		activated.POST("/api/items/:id/sub-items", handleCreateSubItem)
+		activated.PUT("/api/items/:id/sub-items/:sub_id", handleUpdateSubItem)
+		activated.DELETE("/api/items/:id/sub-items/:sub_id", handleDeleteSubItem)
+		activated.POST("/packs/:id/items/:item_id/sub-items/:sub_id/toggle", handleToggleSubItemCheck)
+
 		activated.GET("/categories", handleCategories)
 		activated.GET("/categories/new", handleNewCategoryPage)
 		activated.POST("/categories", handleCreateCategory)
@@ -77,6 +85,7 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, emailService *email.Service, cfg *co
 		activated.POST("/categories/:id/delete", handleDeleteCategory)
 
 		activated.GET("/packs", handlePacks)
+		activated.GET("/packs/compare", handlePackCompare)
 		activated.GET("/packs/new", handleNewPackPage)
 		activated.POST("/packs", handleCreatePack)
 		activated.GET("/packs/:id", handlePackDetail)
@@ -89,6 +98,17 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, emailService *email.Service, cfg *co
 		activated.PUT("/packs/:id/items/:item_id/worn", handleToggleWorn)
 		activated.PUT("/packs/:id/items/:item_id/worn-count", handleUpdateWornCount)
 		activated.POST("/packs/:id/lock", handleTogglePackLock)
+
+		// Pack sharing routes
+		activated.GET("/packs/:id/shares", handlePackSharesPage)
+		activated.POST("/packs/:id/shares", handleCreatePackShare)
+		activated.POST("/packs/:id/shares/:user_id", handleUpdatePackShare)
+		activated.DELETE("/packs/:id/shares/:user_id", handleRevokePackShare)
+		activated.POST("/packs/:id/invites", handleCreateInviteLink)
+		activated.DELETE("/packs/:id/invites/:invite_id", handleDeleteInviteLink)
+
+		// User search autocomplete (JSON)
+		activated.GET("/api/users/search", handleUserSearch)
 
 		activated.POST("/packs/:id/labels", handleCreatePackLabel)
 		activated.POST("/packs/:id/labels/:label_id", handleUpdatePackLabel)

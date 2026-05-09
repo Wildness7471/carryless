@@ -127,6 +127,25 @@
                 </div>
             </form>
             
+            <!-- Sub-items editor -->
+            <div class="sub-items-section" style="margin-top:2rem">
+                <h3>Sub-items <small class="text-muted" style="font-size:.85rem;font-weight:400">(components shown as a checklist on pack detail)</small></h3>
+                <ul id="sub-items-list" style="list-style:none;padding:0;margin:0 0 1rem">
+                    {{range .SubItems}}
+                    <li data-sub-id="{{.ID}}" style="display:flex;align-items:center;gap:.5rem;margin-bottom:.375rem">
+                        <input type="text" class="form-control sub-item-name" value="{{.Name}}" style="flex:1">
+                        <button type="button" class="btn btn-xs btn-secondary" onclick="saveSubItem(this, {{$.Item.ID}}, {{.ID}})">Save</button>
+                        <button type="button" class="btn btn-xs btn-danger" onclick="deleteSubItem(this, {{$.Item.ID}}, {{.ID}})">×</button>
+                    </li>
+                    {{end}}
+                </ul>
+                <div style="display:flex;gap:.5rem">
+                    <input type="text" id="new-sub-item-name" class="form-control" placeholder="New sub-item name…" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubItem({{.Item.ID}})}">
+                    <button type="button" class="btn btn-secondary" onclick="addSubItem({{.Item.ID}})">Add</button>
+                </div>
+                <div id="sub-item-msg" class="alert" style="display:none;margin-top:.5rem"></div>
+            </div>
+
             <div class="danger-zone">
                 <h3>Danger Zone</h3>
                 <p>Deleting an item will remove it from all packs that contain it.</p>
@@ -779,6 +798,59 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+</script>
+<script>
+const ITEM_CSRF = '{{.CSRFToken}}';
+
+async function addSubItem(itemID) {
+    const input = document.getElementById('new-sub-item-name');
+    const name = input.value.trim();
+    if (!name) return;
+    const res = await apiRequest(`/api/items/${itemID}/sub-items`, {
+        method: 'POST',
+        body: new URLSearchParams({ name, csrf_token: ITEM_CSRF }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showSubMsg(data.error || 'Error', false); return; }
+    input.value = '';
+    const li = document.createElement('li');
+    li.dataset.subId = data.id;
+    li.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin-bottom:.375rem';
+    li.innerHTML = `<input type="text" class="form-control sub-item-name" value="${escapeHtml(data.name)}" style="flex:1">
+        <button type="button" class="btn btn-xs btn-secondary" onclick="saveSubItem(this,${itemID},${data.id})">Save</button>
+        <button type="button" class="btn btn-xs btn-danger" onclick="deleteSubItem(this,${itemID},${data.id})">×</button>`;
+    document.getElementById('sub-items-list').appendChild(li);
+    showSubMsg('Sub-item added.', true);
+}
+
+async function saveSubItem(btn, itemID, subID) {
+    const name = btn.closest('li').querySelector('.sub-item-name').value.trim();
+    if (!name) return;
+    const res = await apiRequest(`/api/items/${itemID}/sub-items/${subID}`, {
+        method: 'PUT',
+        body: new URLSearchParams({ name, csrf_token: ITEM_CSRF }),
+    });
+    const data = await res.json();
+    showSubMsg(res.ok ? 'Saved.' : (data.error || 'Error'), res.ok);
+}
+
+async function deleteSubItem(btn, itemID, subID) {
+    if (!confirm('Delete this sub-item?')) return;
+    const res = await apiRequest(`/api/items/${itemID}/sub-items/${subID}`, {
+        method: 'DELETE',
+        body: new URLSearchParams({ csrf_token: ITEM_CSRF }),
+    });
+    if (res.ok) { btn.closest('li').remove(); showSubMsg('Deleted.', true); }
+    else { const d = await res.json(); showSubMsg(d.error || 'Error', false); }
+}
+
+function showSubMsg(text, ok) {
+    const el = document.getElementById('sub-item-msg');
+    el.textContent = text;
+    el.className = `alert ${ok ? 'alert-success' : 'alert-error'}`;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
 </script>
 </body>
 </html>
