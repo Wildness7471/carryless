@@ -41,6 +41,7 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, emailService *email.Service, cfg *co
 		protected.POST("/account/currency", handleChangeCurrency)
 		protected.POST("/account/username", handleChangeUsername)
 		protected.GET("/api/csrf-token", handleCSRFToken)
+		protected.POST("/api/auth/token", handleCreateBearerToken)
 	}
 
 	// Routes that require activation (content creation/modification)

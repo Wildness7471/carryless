@@ -486,3 +486,20 @@ func CleanupExpiredActivationTokens(db *sql.DB) error {
 	}
 	return nil
 }
+
+const bearerTokenDuration = 30 * 24 * time.Hour
+
+// CreateBearerToken creates a long-lived session token for API/mobile clients.
+// The token is stored in the sessions table and is valid for 30 days.
+func CreateBearerToken(db *sql.DB, userID int) (token string, expiresAt time.Time, err error) {
+	session, err := CreateSession(db, userID, bearerTokenDuration)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("failed to create bearer token: %w", err)
+	}
+	return session.ID, session.ExpiresAt, nil
+}
+
+// ValidateBearerToken validates a bearer token and returns the associated user.
+func ValidateBearerToken(db *sql.DB, token string) (*models.User, error) {
+	return ValidateSession(db, token, bearerTokenDuration)
+}

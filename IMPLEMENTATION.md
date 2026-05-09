@@ -17,10 +17,10 @@ If you hit a usage limit, check this file first. The status table shows exactly 
 | 0 | Label tests (pack labels, user pack labels, assign/remove) | ✅ |
 | 0 | Item link tests (create, delete, get, self-link error) | ✅ |
 | 0 | Trip tests (CRUD, add pack, checklist, transport) | ✅ |
-| 1a | WAL mode + busy_timeout added to SQLite DSN | ⬜ |
-| 1a | `CreateBearerToken` + `ValidateBearerToken` in auth.go | ⬜ |
-| 1a | Bearer token accepted in middleware (alongside cookie) | ⬜ |
-| 1a | `POST /api/auth/token` handler + route | ⬜ |
+| 1a | WAL mode + busy_timeout added to SQLite DSN | ✅ |
+| 1a | `CreateBearerToken` + `ValidateBearerToken` in auth.go | ✅ |
+| 1a | Bearer token accepted in middleware (alongside cookie) | ✅ |
+| 1a | `POST /api/auth/token` handler + route | ✅ |
 | 1b | `PackShare` + `PackInvite` models in models.go | ⬜ |
 | 1b | `pack_shares` + `pack_invites` table migrations | ⬜ |
 | 1b | `internal/database/pack_shares.go` DB functions | ⬜ |
