@@ -201,6 +201,39 @@ func Migrate(db *sql.DB) error {
 		return fmt.Errorf("failed to create pack sharing tables: %w", err)
 	}
 
+	if err := createSubItemsTables(db); err != nil {
+		return fmt.Errorf("failed to create sub-items tables: %w", err)
+	}
+
+	return nil
+}
+
+func createSubItemsTables(db *sql.DB) error {
+	migrations := []string{
+		`CREATE TABLE IF NOT EXISTS item_sub_items (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			item_id    INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+			name       TEXT NOT NULL,
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_item_sub_items_item_id ON item_sub_items(item_id)`,
+		`CREATE TABLE IF NOT EXISTS pack_sub_item_checks (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			pack_id     TEXT    NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+			sub_item_id INTEGER NOT NULL REFERENCES item_sub_items(id) ON DELETE CASCADE,
+			is_checked  INTEGER NOT NULL DEFAULT 0,
+			updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(pack_id, sub_item_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_pack_sub_item_checks_pack ON pack_sub_item_checks(pack_id)`,
+	}
+	for _, m := range migrations {
+		if _, err := db.Exec(m); err != nil {
+			return fmt.Errorf("failed to run sub-items migration: %w", err)
+		}
+	}
 	return nil
 }
 

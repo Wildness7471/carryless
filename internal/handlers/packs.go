@@ -261,6 +261,16 @@ func handlePackDetail(c *gin.Context) {
 		}
 	}
 
+	// Load sub-items for all items in the pack (one query)
+	itemIDs := make([]int, 0, len(pack.Items))
+	for _, pi := range pack.Items {
+		itemIDs = append(itemIDs, pi.Item.ID)
+	}
+	subItemMap, _ := database.GetSubItemsForPackBulk(db, packID, itemIDs)
+	for i := range pack.Items {
+		pack.Items[i].Item.SubItems = subItemMap[pack.Items[i].Item.ID]
+	}
+
 	csrfToken, err := database.CreateCSRFToken(db, userID)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "pack_detail.html", gin.H{

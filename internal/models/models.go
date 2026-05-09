@@ -41,9 +41,21 @@ type Item struct {
 	Link           *string    `json:"link,omitempty" db:"link"`
 	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
-	Category       *Category  `json:"category,omitempty"`
-	LinkedItems    []ItemLink `json:"linked_items,omitempty"`
-	HasLinkedItems bool       `json:"has_linked_items"`
+	Category       *Category     `json:"category,omitempty"`
+	LinkedItems    []ItemLink    `json:"linked_items,omitempty"`
+	HasLinkedItems bool          `json:"has_linked_items"`
+	SubItems       []ItemSubItem `json:"sub_items,omitempty"`
+}
+
+// ItemSubItem is a named component of an Item (e.g. "stuff sack" for a sleeping bag).
+type ItemSubItem struct {
+	ID        int       `json:"id" db:"id"`
+	ItemID    int       `json:"item_id" db:"item_id"`
+	Name      string    `json:"name" db:"name"`
+	SortOrder int       `json:"sort_order" db:"sort_order"`
+	IsChecked bool      `json:"is_checked"` // populated per-pack by handler
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type Pack struct {

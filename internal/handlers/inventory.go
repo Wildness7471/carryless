@@ -357,12 +357,15 @@ func handleEditItemPage(c *gin.Context) {
 		return
 	}
 
+	subItems, _ := database.GetSubItems(db, itemID)
+
 	c.HTML(http.StatusOK, "edit_item.html", gin.H{
 		"Title":      "Edit Item - Carryless",
 		"User":       user,
 		"Item":       item,
 		"Items":      items,
 		"Categories": categories,
+		"SubItems":   subItems,
 		"CSRFToken":  csrfToken.Token,
 	})
 }

@@ -39,14 +39,14 @@ If you hit a usage limit, check this file first. The status table shows exactly 
 | 2 | `templates/pack_compare.html` side-by-side UI | ✅ |
 | 2 | `static/js/pack_compare.js` drag-and-drop + move buttons | ✅ |
 | 2 | `/packs` page: checkbox multi-select + Compare button | ✅ |
-| 3 | `item_sub_items` + `pack_sub_item_checks` migrations | ⬜ |
-| 3 | `ItemSubItem` model + `SubItems` field on `Item` | ⬜ |
-| 3 | `internal/database/sub_items.go` DB functions | ⬜ |
-| 3 | `internal/database/sub_items_test.go` tests | ⬜ |
-| 3 | Sub-item editor in item create/edit pages | ⬜ |
-| 3 | Sub-item API routes registered | ⬜ |
-| 3 | Pack checklist UI: indented sub-items, indeterminate state | ⬜ |
-| 3 | `localStorage` offline fallback + sync-on-reconnect | ⬜ |
+| 3 | `item_sub_items` + `pack_sub_item_checks` migrations | ✅ |
+| 3 | `ItemSubItem` model + `SubItems` field on `Item` | ✅ |
+| 3 | `internal/database/sub_items.go` DB functions | ✅ |
+| 3 | `internal/database/sub_items_test.go` tests | ✅ |
+| 3 | Sub-item editor in item create/edit pages | ✅ |
+| 3 | Sub-item API routes registered | ✅ |
+| 3 | Pack checklist UI: indented sub-items, indeterminate state | ✅ |
+| 3 | `localStorage` offline fallback + sync-on-reconnect | ✅ |
 
 **Status key:** ⬜ Not started | 🔄 In progress | ✅ Done
 

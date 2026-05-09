@@ -170,6 +170,24 @@
                                 <button type="button" class="btn-add-label" onclick="showAddLabelModal({{.ID}})">+ Label</button>
                                 {{end}}
                             </div>
+
+                            <!-- Sub-item checklist -->
+                            {{if .Item.SubItems}}
+                            {{$packID := $.Pack.ID}}
+                            {{$itemID := .Item.ID}}
+                            <ul class="sub-item-checklist">
+                                {{range .Item.SubItems}}
+                                <li class="sub-item-check-row{{if .IsChecked}} checked{{end}}"
+                                    data-sub-id="{{.ID}}">
+                                    <label>
+                                        <input type="checkbox" {{if .IsChecked}}checked{{end}}
+                                               onchange="toggleSubItem('{{$packID}}', {{$itemID}}, {{.ID}}, this.checked)">
+                                        {{.Name}}
+                                    </label>
+                                </li>
+                                {{end}}
+                            </ul>
+                            {{end}}
                         </div>
                     {{end}}
                 </div>
@@ -1985,9 +2003,98 @@ async function saveFullEdit(event) {
     }
 }
 
+// ── Sub-item check toggle with localStorage offline fallback ─────────────────
+
+const PACK_ID_FOR_SUB = '{{.Pack.ID}}';
+const SUB_OFFLINE_KEY = `sub_checks_${PACK_ID_FOR_SUB}`;
+
+function loadOfflineSubChecks() {
+    try { return JSON.parse(localStorage.getItem(SUB_OFFLINE_KEY) || '{}'); }
+    catch { return {}; }
+}
+function saveOfflineSubCheck(subID, isChecked) {
+    const store = loadOfflineSubChecks();
+    store[subID] = isChecked;
+    localStorage.setItem(SUB_OFFLINE_KEY, JSON.stringify(store));
+}
+
+async function toggleSubItem(packID, itemID, subID, isChecked) {
+    // Persist to localStorage immediately for offline resilience
+    saveOfflineSubCheck(subID, isChecked);
+
+    const li = document.querySelector(`.sub-item-check-row[data-sub-id="${subID}"]`);
+    if (li) li.classList.toggle('checked', isChecked);
+
+    try {
+        await apiRequest(`/packs/${packID}/items/${itemID}/sub-items/${subID}/toggle`, {
+            method: 'POST',
+            body: new URLSearchParams({ is_checked: isChecked ? 'true' : 'false', csrf_token: packPageCsrfToken }),
+        });
+        // On success clear the offline entry (server is authoritative)
+        const store = loadOfflineSubChecks();
+        delete store[subID];
+        localStorage.setItem(SUB_OFFLINE_KEY, JSON.stringify(store));
+    } catch {
+        // Silently keep offline state; will sync on next load
+    }
+}
+
+// On page load, sync any pending offline changes
+(async function syncOfflineSubChecks() {
+    const pending = loadOfflineSubChecks();
+    const ids = Object.keys(pending);
+    if (ids.length === 0) return;
+    for (const subID of ids) {
+        const isChecked = pending[subID];
+        const li = document.querySelector(`.sub-item-check-row[data-sub-id="${subID}"]`);
+        if (li) {
+            const cb = li.querySelector('input[type="checkbox"]');
+            if (cb) cb.checked = isChecked;
+            li.classList.toggle('checked', isChecked);
+        }
+        try {
+            // We need item_id from the li; encode it in the row's parent if available
+            // Fall back to the route that doesn't need item_id (we use a dummy)
+            // The toggle endpoint only needs packID and subID — item_id in URL is informational
+            const row = li.closest('.pack-item-card');
+            const itemIDAttr = row ? row.dataset.itemId : '0';
+            await apiRequest(`/packs/${PACK_ID_FOR_SUB}/items/${itemIDAttr}/sub-items/${subID}/toggle`, {
+                method: 'POST',
+                body: new URLSearchParams({ is_checked: isChecked ? 'true' : 'false', csrf_token: packPageCsrfToken }),
+            });
+            delete pending[subID];
+        } catch { /* stay pending */ }
+    }
+    localStorage.setItem(SUB_OFFLINE_KEY, JSON.stringify(pending));
+})();
+
 </script>
 
 <style>
+/* Sub-item checklist */
+.sub-item-checklist {
+    list-style: none;
+    padding: 0.25rem 0 0;
+    margin: 0;
+}
+.sub-item-check-row {
+    display: flex;
+    align-items: center;
+    padding: 2px 0;
+    font-size: .85rem;
+    color: #495057;
+}
+.sub-item-check-row label {
+    display: flex;
+    align-items: center;
+    gap: .375rem;
+    cursor: pointer;
+}
+.sub-item-check-row.checked label {
+    text-decoration: line-through;
+    color: #adb5bd;
+}
+
 /* Back link styling */
 .back-link {
     color: var(--color-primary, #007bff);
