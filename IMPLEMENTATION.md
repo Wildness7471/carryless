@@ -21,19 +21,19 @@ If you hit a usage limit, check this file first. The status table shows exactly 
 | 1a | `CreateBearerToken` + `ValidateBearerToken` in auth.go | ✅ |
 | 1a | Bearer token accepted in middleware (alongside cookie) | ✅ |
 | 1a | `POST /api/auth/token` handler + route | ✅ |
-| 1b | `PackShare` + `PackInvite` models in models.go | ⬜ |
-| 1b | `pack_shares` + `pack_invites` table migrations | ⬜ |
-| 1b | `internal/database/pack_shares.go` DB functions | ⬜ |
-| 1b | `internal/database/pack_shares_test.go` tests | ⬜ |
-| 1b | `packPermission()` helper in handlers | ⬜ |
-| 1b | `respond()` content-negotiation helper in handlers | ⬜ |
-| 1b | Existing pack handlers updated with permission checks | ⬜ |
-| 1b | `internal/handlers/pack_shares.go` share handlers | ⬜ |
-| 1b | Routes registered in handlers.go | ⬜ |
-| 1b | `GET /api/users/search` JSON endpoint | ⬜ |
-| 1b | `templates/pack_shares.html` sharing UI | ⬜ |
-| 1b | `/packs` page shows "Shared with me" section | ⬜ |
-| 1b | Owner-only inventory delete enforced | ⬜ |
+| 1b | `PackShare` + `PackInvite` models in models.go | ✅ |
+| 1b | `pack_shares` + `pack_invites` table migrations | ✅ |
+| 1b | `internal/database/pack_shares.go` DB functions | ✅ |
+| 1b | `internal/database/pack_shares_test.go` tests | ✅ |
+| 1b | `packPermission()` helper in handlers | ✅ |
+| 1b | `respond()` content-negotiation helper in handlers | ✅ |
+| 1b | Existing pack handlers updated with permission checks | ✅ |
+| 1b | `internal/handlers/pack_shares.go` share handlers | ✅ |
+| 1b | Routes registered in handlers.go | ✅ |
+| 1b | `GET /api/users/search` JSON endpoint | ✅ |
+| 1b | `templates/pack_shares.html` sharing UI | ✅ |
+| 1b | `/packs` page shows "Shared with me" section | ✅ |
+| 1b | Owner-only inventory delete enforced | ✅ |
 | 2 | `handlePackCompare` handler | ⬜ |
 | 2 | `GET /packs/compare` route registered | ⬜ |
 | 2 | `templates/pack_compare.html` side-by-side UI | ⬜ |

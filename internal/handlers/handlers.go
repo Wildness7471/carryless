@@ -42,6 +42,7 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, emailService *email.Service, cfg *co
 		protected.POST("/account/username", handleChangeUsername)
 		protected.GET("/api/csrf-token", handleCSRFToken)
 		protected.POST("/api/auth/token", handleCreateBearerToken)
+		protected.GET("/invite/:token", handleRedeemInvite)
 	}
 
 	// Routes that require activation (content creation/modification)
@@ -90,6 +91,17 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, emailService *email.Service, cfg *co
 		activated.PUT("/packs/:id/items/:item_id/worn", handleToggleWorn)
 		activated.PUT("/packs/:id/items/:item_id/worn-count", handleUpdateWornCount)
 		activated.POST("/packs/:id/lock", handleTogglePackLock)
+
+		// Pack sharing routes
+		activated.GET("/packs/:id/shares", handlePackSharesPage)
+		activated.POST("/packs/:id/shares", handleCreatePackShare)
+		activated.POST("/packs/:id/shares/:user_id", handleUpdatePackShare)
+		activated.DELETE("/packs/:id/shares/:user_id", handleRevokePackShare)
+		activated.POST("/packs/:id/invites", handleCreateInviteLink)
+		activated.DELETE("/packs/:id/invites/:invite_id", handleDeleteInviteLink)
+
+		// User search autocomplete (JSON)
+		activated.GET("/api/users/search", handleUserSearch)
 
 		activated.POST("/packs/:id/labels", handleCreatePackLabel)
 		activated.POST("/packs/:id/labels/:label_id", handleUpdatePackLabel)

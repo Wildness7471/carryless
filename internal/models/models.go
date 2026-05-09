@@ -59,6 +59,32 @@ type Pack struct {
 	Items           []PackItem      `json:"items,omitempty"`
 	Labels          []PackLabel     `json:"labels,omitempty"`
 	PackLevelLabels []UserPackLabel `json:"pack_level_labels,omitempty"`
+	Shares          []PackShare     `json:"shares,omitempty"`
+	// UserPermission is set at the handler layer: "owner"|"admin"|"edit"|"add"|"view"
+	UserPermission string `json:"user_permission,omitempty"`
+}
+
+// PackShare represents a user's access to a pack they don't own.
+type PackShare struct {
+	ID               int       `json:"id" db:"id"`
+	PackID           string    `json:"pack_id" db:"pack_id"`
+	OwnerID          int       `json:"owner_id" db:"owner_id"`
+	SharedWithUserID int       `json:"shared_with_user_id" db:"shared_with_user_id"`
+	Permission       string    `json:"permission" db:"permission"` // "view"|"add"|"edit"|"admin"
+	SharedWithUser   *User     `json:"shared_with_user,omitempty"`
+	CreatedAt        time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// PackInvite is a shareable link that grants access to a pack.
+type PackInvite struct {
+	ID         int       `json:"id" db:"id"`
+	PackID     string    `json:"pack_id" db:"pack_id"`
+	OwnerID    int       `json:"owner_id" db:"owner_id"`
+	Token      string    `json:"token" db:"token"`
+	Permission string    `json:"permission" db:"permission"` // "view"|"add"|"edit"|"admin"
+	ExpiresAt  time.Time `json:"expires_at" db:"expires_at"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
 }
 
 type PackItem struct {
